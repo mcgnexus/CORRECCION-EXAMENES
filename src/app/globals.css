@@ -39,6 +39,28 @@ h1 { max-width: 720px; font-size: clamp(2.6rem, 7vw, 6.8rem); line-height: .94; 
 .list { display: grid; gap: 10px; margin-top: 32px; max-width: 760px; }
 .list-item { display: flex; justify-content: space-between; gap: 16px; align-items: center; background: var(--panel); border: 1px solid var(--line); padding: 17px; }
 .list-item small { color: var(--muted); }
+.detail-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(280px, .8fr); gap: 18px; margin-top: 32px; }
+.panel { background: var(--panel); border: 1px solid var(--line); padding: 18px; }
+.panel h2 { font-size: 1.35rem; font-weight: 500; margin: 0 0 14px; }
+.dropzone { border: 1px dashed var(--accent); background: var(--accent-soft); padding: 24px; text-align: center; }
+.dropzone input { display: block; width: 100%; margin-top: 14px; }
+.progress { height: 6px; background: var(--line); margin-top: 10px; overflow: hidden; }
+.progress span { display: block; height: 100%; background: var(--accent); transition: width .2s ease; }
+.asset-list { display: grid; gap: 8px; margin-top: 16px; }
+.asset-row { display: flex; gap: 10px; align-items: center; border-top: 1px solid var(--line); padding-top: 10px; }
+.asset-row small { color: var(--muted); flex: 1; }
+.page-list { display: grid; gap: 8px; max-height: 480px; overflow: auto; }
+.page-row { display: grid; grid-template-columns: 24px 1fr auto; gap: 10px; align-items: center; border: 1px solid var(--line); padding: 8px; cursor: pointer; }
+.page-row.selected { border-color: var(--accent); background: var(--accent-soft); }
+.thumb { width: 62px; height: 78px; object-fit: contain; background: #e7e1d6; }
+.preview { min-height: 360px; display: grid; place-items: center; background: #e7e1d6; overflow: hidden; }
+.preview img { max-width: 100%; max-height: 500px; object-fit: contain; }
+.preview iframe { border: 0; width: 100%; min-height: 500px; }
+.toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.toolbar .button { padding: 8px 10px; font-size: .7rem; }
+.mini-form { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 12px; }
+.mini-form .input { min-width: 0; padding: 8px; }
+@media (max-width: 900px) { .detail-grid { grid-template-columns: 1fr; } }
 @media (max-width: 760px) {
   .shell { padding: 22px 18px; }
   .topbar { align-items: flex-start; flex-direction: column; }

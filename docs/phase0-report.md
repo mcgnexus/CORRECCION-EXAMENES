@@ -2,7 +2,7 @@
 
 ## Estado
 
-La base local compila y tiene pruebas deterministas, pero la puerta de salida de Preview todavía no está superada. Este informe registra lo que ya se ha comprobado localmente y los bloqueos que impiden afirmar que el despliegue técnico está listo.
+La base local compila y la infraestructura principal ya fue verificada en Preview. Gemini/DeepSeek siguen pendientes porque sus secretos y modelos no están configurados en Preview.
 
 ## Comprobaciones locales
 
@@ -15,29 +15,29 @@ Entorno observado: Node `v24.19.0`, npm `11.17.0`, Next `15.5.28`, `@vercel/blob
 | CAS de manifiestos | OK en memoria | `tests/repository.test.ts` |
 | API inicial | Compila | Rutas App Router bajo `src/app/api` |
 | Blob privado en Preview | OK | Preview creó/listó manifiestos y la URL privada sin autorización devolvió `403` |
-| Python/OpenCV | Pendiente | No se ha desplegado función Python |
-| PDF con figuras | Pendiente | Falta seleccionar y probar biblioteca de servidor |
+| Python/OpenCV | OK | Preview respondió `4.14.0` y procesó una hoja sintética |
+| PDF con figuras | OK | Preview extrajo texto y renderizó PNG sin Poppler |
 | Gemini multimodal | Pendiente | Falta credencial y prueba aislada |
 | DeepSeek | Pendiente | Falta credencial y comprobar visión real |
 | Gemini Search | Pendiente | Falta prueba de búsqueda y registro de fuentes |
-| Workflow reanudable | Implementado; Preview pendiente | Workflow SDK compila, registra dos pasos y expone `/api/phase0/workflow` |
+| Workflow reanudable | OK | Preview completó y falló el segundo paso de forma controlada |
 
 ## Estado Blob
 
-La dependencia está fijada a la rama `@vercel/blob` 2.8.x, cuya API declara acceso `private`, lecturas autenticadas y ETag para escrituras condicionales. `VercelPrivateBlobStore` usa esas operaciones y `POST /api/uploads/authorize` genera tokens de cliente de duración limitada con prefijo de propietario, MIME permitido y tamaño máximo. El almacén conectado es `corrector-phase0` (`store_U5X2SzWofn5NAxON`), vacío al iniciar la fase.
+La dependencia está fijada a la rama `@vercel/blob` 2.8.x, cuya API declara acceso `private`, lecturas autenticadas y ETag para escrituras condicionales. `VercelPrivateBlobStore` usa esas operaciones y `POST /api/uploads/authorize` genera tokens de cliente de duración limitada con prefijo de propietario, MIME permitido y tamaño máximo. El almacén conectado es `corrector-phase0` (`store_U5X2SzWofn5NAxON`).
 
 `MemoryBlobStore` solo permite probar CAS en proceso y no es almacenamiento de negocio. `UnavailablePrivateBlobStore` sigue siendo el comportamiento seguro si no existe token.
 
-## Próximas mediciones requeridas en Preview
+## Mediciones ejecutadas en Preview
 
 Registrar para cada prueba: commit, runtime, versión de dependencia, región, duración, memoria, tamaño de entrada/salida, número de reintentos y resultado. Consultar los límites del plan antes de fijar concurrencia o tamaño de lote.
 
-1. Subir JPEG/PNG/PDF a Blob privado, leer con autorización y demostrar que una URL sin autorización no funciona.
-2. Ejecutar Python/OpenCV con una hoja sintética, rectificarla y devolver JSON OMR. Si el empaquetado falla, probar OpenCV.js/WASM aislado.
-3. Extraer texto nativo y renderizar un PDF con figuras sin Poppler.
-4. Ejecutar una llamada multimodal real de Gemini y una llamada de DeepSeek; registrar modelo exacto y capacidades.
-5. Ejecutar Gemini con búsqueda habilitada y conservar fuentes vinculadas a afirmaciones.
-6. Fallar el segundo paso de un Workflow y comprobar que el primero no se repite ni pierde su resultado.
+1. Crear/listar un examen sintético, repetirlo con la misma clave y demostrar `replayed: true`.
+2. Emitir token Blob limitado a `owners/ACPL/` y comprobar que la lectura directa sin autorización devuelve `403`.
+3. Ejecutar Python/OpenCV con una hoja sintética, rectificarla y devolver JSON OMR.
+4. Extraer texto nativo y renderizar un PDF con figuras sin Poppler.
+5. Ejecutar Workflow normal y con fallo sintético; el primero terminó `completed` y el segundo `failed` en el segundo paso.
+6. Consultar la sonda de proveedores; Gemini/DeepSeek quedaron `not_run` por falta de secretos/modelos en Preview.
 
 ## Resultados de Preview
 

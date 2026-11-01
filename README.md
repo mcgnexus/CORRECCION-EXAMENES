@@ -9,6 +9,7 @@ Base inicial de una aplicación privada para preparar solucionarios y revisar no
 - Puntuación determinista para test y secciones ponderadas.
 - Sesión de propietario sellada con `iron-session` y validación de contraseña `scrypt`.
 - Repositorio de exámenes con manifiesto JSON, hashes y control ETag/CAS.
+- Ingesta documental con assets validados, páginas, visor autenticado y borrado seguro.
 - Workflow SDK integrado con una sonda de dos pasos reanudable.
 - API mínima para sesión, exámenes y comprobación de capacidades.
 - Pruebas deterministas de puntuación y concurrencia del repositorio.
@@ -47,6 +48,8 @@ Copiar los nombres de `.env.example` al entorno local o de Vercel sin incluir se
 - `POST /api/auth/login` y `POST /api/auth/logout`.
 - `GET /api/exams` y `POST /api/exams`.
 - `GET /api/exams/:id` y `PATCH /api/exams/:id` con `expectedEtag`.
+- `GET /api/exams/:id/assets`, `/pages` y `PATCH /pages` con revisión CAS.
+- `POST /api/exams/:id/assets/authorize`, `GET /api/assets/:id/metadata`, `GET /api/assets/:id/content` y `DELETE /api/assets/:id`.
 - `POST /api/settings/check-providers`.
 - `POST /api/phase0/providers`, sonda interna sintética de Gemini/DeepSeek y búsqueda.
 - `POST /api/uploads/authorize`, token privado limitado por propietario, MIME y tamaño.
@@ -55,4 +58,4 @@ Todas las mutaciones comprueban sesión, origen y esquemas. Las respuestas de er
 
 ## Próximo hito
 
-Completar `docs/phase0-report.md` con una Preview que demuestre Blob privado, OpenCV/Python, PDF, Gemini, DeepSeek, búsqueda con fuentes y Workflow reanudable. No avanzar con procesamiento de documentos reales mientras alguno de esos puntos no esté verificado.
+Consultar `docs/phase0-report.md` y `docs/phase1-report.md` para los resultados de Preview. El siguiente hito es extracción/solucionario; no procesar datos reales con IA hasta configurar y verificar Gemini/DeepSeek en Preview.

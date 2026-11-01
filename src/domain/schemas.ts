@@ -32,10 +32,18 @@ export const omrStatusSchema = z.enum([
   "unreadable",
 ]);
 
+export const assetKindSchema = z.enum(["original", "page", "preview", "derived"]);
+export const assetStateSchema = z.enum(["uploaded", "validated", "rejected", "deleting", "deleted"]);
+export const assetOriginSchema = z.enum(["upload", "derived", "provider", "export"]);
+
 export const assetSchema = z.object({
   schemaVersion,
   assetId: idSchema,
   ownerId: ownerIdSchema,
+  examId: idSchema.optional(),
+  kind: assetKindSchema,
+  state: assetStateSchema,
+  origin: assetOriginSchema,
   sha256: z.string().regex(/^[a-f0-9]{64}$/),
   mimeType: z.string().min(1),
   blobPath: z.string().min(1),
@@ -43,8 +51,53 @@ export const assetSchema = z.object({
   width: z.number().int().positive().optional(),
   height: z.number().int().positive().optional(),
   pageCount: z.number().int().positive().optional(),
-  origin: z.enum(["upload", "derived", "provider", "export"]),
+  pageNumber: z.number().int().positive().optional(),
+  sourceAssetId: idSchema.optional(),
+  errorCode: z.string().optional(),
+  etag: z.string().optional(),
   createdAt: isoDateSchema,
+  updatedAt: isoDateSchema,
+});
+
+export const normalizedCropSchema = z.object({
+  x: z.number().min(0).max(1),
+  y: z.number().min(0).max(1),
+  width: z.number().gt(0).max(1),
+  height: z.number().gt(0).max(1),
+});
+
+export const documentPageSchema = z.object({
+  schemaVersion,
+  pageId: idSchema,
+  examId: idSchema,
+  ownerId: ownerIdSchema,
+  sourceAssetId: idSchema,
+  previewAssetId: idSchema.optional(),
+  pageNumber: z.number().int().positive(),
+  order: z.number().int().nonnegative(),
+  rotation: z.union([z.literal(0), z.literal(90), z.literal(180), z.literal(270)]),
+  crop: normalizedCropSchema.optional(),
+  groupId: idSchema.optional(),
+});
+
+export const documentGroupSchema = z.object({
+  schemaVersion,
+  groupId: idSchema,
+  examId: idSchema,
+  ownerId: ownerIdSchema,
+  label: z.string().min(1).max(200),
+  pageIds: z.array(idSchema),
+  studentLabel: z.string().max(200).optional(),
+});
+
+export const documentPagesManifestSchema = z.object({
+  schemaVersion,
+  examId: idSchema,
+  ownerId: ownerIdSchema,
+  pages: z.array(documentPageSchema),
+  groups: z.array(documentGroupSchema),
+  etag: z.string().optional(),
+  updatedAt: isoDateSchema,
 });
 
 export const figureSchema = z.object({
@@ -209,6 +262,10 @@ export const auditEventSchema = z.object({
 });
 
 export type Exam = z.infer<typeof examSchema>;
+export type Asset = z.infer<typeof assetSchema>;
+export type DocumentPage = z.infer<typeof documentPageSchema>;
+export type DocumentGroup = z.infer<typeof documentGroupSchema>;
+export type DocumentPagesManifest = z.infer<typeof documentPagesManifestSchema>;
 export type ScoringPolicy = z.infer<typeof scoringPolicySchema>;
 export type ScoringSection = z.infer<typeof scoringSectionSchema>;
 export type ResponseObservation = z.infer<typeof responseObservationSchema>;

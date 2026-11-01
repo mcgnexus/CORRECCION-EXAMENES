@@ -44,7 +44,7 @@ export default function ExamsPage() {
           <button className="button" type="submit">Crear examen en borrador</button>
         </form>
         <div className="list" aria-live="polite">
-          {loading ? <p className="intro">Cargando...</p> : exams.length === 0 ? <p className="intro">Todavía no hay exámenes persistidos.</p> : exams.map((exam) => <article className="list-item" key={exam.examId}><div><strong>{exam.title}</strong><br /><small>{exam.subject}</small></div><span className="eyebrow">{exam.state}</span></article>)}
+          {loading ? <p className="intro">Cargando...</p> : exams.length === 0 ? <p className="intro">Todavía no hay exámenes persistidos.</p> : exams.map((exam) => <a className="list-item" href={`/exams/${exam.examId}`} key={exam.examId}><div><strong>{exam.title}</strong><br /><small>{exam.subject}</small></div><span className="eyebrow">{exam.state}</span></a>)}
         </div>
       </section>
     </main>
