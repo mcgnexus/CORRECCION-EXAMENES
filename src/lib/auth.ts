@@ -6,7 +6,7 @@ import { AppError } from "./errors";
 export type SessionData = { ownerId?: string; csrfToken?: string };
 
 const sessionOptions = {
-  password: process.env.AUTH_SECRET ?? "development-only-secret-change-me-32-chars",
+  password: process.env.AUTH_SECRET ?? "corrector-examenes-local-secret-change-in-production-32chars",
   cookieName: "exam_corrector_session",
   cookieOptions: { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax" as const, maxAge: 60 * 60 * 8, path: "/" },
 };
