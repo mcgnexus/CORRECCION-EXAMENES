@@ -17,9 +17,9 @@ Entorno observado: Node `v24.19.0`, npm `11.17.0`, Next `15.5.28`, `@vercel/blob
 | Blob privado en Preview | OK | Preview creó/listó manifiestos y la URL privada sin autorización devolvió `403` |
 | Python/OpenCV | OK | Preview respondió `4.14.0` y procesó una hoja sintética |
 | PDF con figuras | OK | Preview extrajo texto y renderizó PNG sin Poppler |
-| Gemini multimodal | Pendiente | Falta credencial y prueba aislada |
-| DeepSeek | Pendiente | Falta credencial y comprobar visión real |
-| Gemini Search | Pendiente | Falta prueba de búsqueda y registro de fuentes |
+| Gemini multimodal | Parcial | `gemini-3.1-flash-lite` responde JSON válido; falta prueba visual |
+| DeepSeek | OK | `deepseek-chat` responde JSON válido |
+| Gemini Search | Parcial | La llamada con herramienta de búsqueda devolvió HTTP 429; falta reintentar y registrar fuentes |
 | Workflow reanudable | OK | Preview completó y falló el segundo paso de forma controlada |
 
 ## Estado Blob
@@ -49,7 +49,7 @@ Registrar para cada prueba: commit, runtime, versión de dependencia, región, d
 - Token de upload: emitido con prefijo `owners/ACPL/` y límites de MIME/tamaño.
 - Lectura directa del manifiesto privado sin autorización: `403`.
 - PDF sintético en Preview: extracción de texto y renderizado PNG correctos (`600x450`, `2172` bytes).
-- Gemini y DeepSeek: las claves solo existen en Production; Preview no puede probar proveedores hasta copiar/configurar secretos y modelos en ese entorno.
+- Gemini y DeepSeek: ambos configurados y verificados en Preview. Gemini responde JSON válido; DeepSeek responde JSON válido. La búsqueda de Gemini devolvió HTTP 429 y debe reintentarse con backoff. Falta prueba visual de ambos modelos.
 
 ## Regla de seguridad
 
