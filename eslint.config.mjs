@@ -4,7 +4,7 @@ import reactHooks from "eslint-plugin-react-hooks";
 
 export default [
   {
-    ignores: [".next/**", "node_modules/**", "coverage/**"],
+    ignores: [".next/**", "node_modules/**", "coverage/**", "src/app/.well-known/workflow/**"],
   },
   {
     files: ["**/*.ts", "**/*.tsx"],

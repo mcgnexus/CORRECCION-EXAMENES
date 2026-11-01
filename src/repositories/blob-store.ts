@@ -45,10 +45,13 @@ export class UnavailablePrivateBlobStore implements BlobStore {
 
 export class VercelPrivateBlobStore implements BlobStore {
   private readonly token = process.env.BLOB_READ_WRITE_TOKEN;
+  private readonly oidcToken = process.env.VERCEL_OIDC_TOKEN;
+  private readonly storeId = process.env.BLOB_STORE_ID;
 
   private auth() {
-    if (!this.token) throw new AppError("BLOB_NOT_CONFIGURED", "BLOB_READ_WRITE_TOKEN no está configurado.", 503);
-    return { token: this.token };
+    if (this.token) return { token: this.token };
+    if (this.oidcToken && this.storeId) return { oidcToken: this.oidcToken, storeId: this.storeId };
+    throw new AppError("BLOB_NOT_CONFIGURED", "No hay credenciales OIDC o token de Blob configurados.", 503);
   }
 
   async put(path: string, body: Uint8Array, contentType: string, options: { ifMatch?: string; ifNoneMatch?: boolean } = {}) {
@@ -85,7 +88,7 @@ export function getBlobStore(): BlobStore {
   if (!store) {
     store = process.env.BLOB_STORAGE_MODE === "memory"
       ? new MemoryBlobStore()
-      : process.env.BLOB_READ_WRITE_TOKEN
+      : process.env.BLOB_READ_WRITE_TOKEN || (process.env.VERCEL_OIDC_TOKEN && process.env.BLOB_STORE_ID)
         ? new VercelPrivateBlobStore()
         : new UnavailablePrivateBlobStore();
   }

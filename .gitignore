@@ -8,3 +8,8 @@ coverage/
 *.log
 __pycache__/
 *.pyc
+*.tsbuildinfo
+
+.vercel
+.env*
+/.swc

@@ -5,14 +5,14 @@ import { AppError } from "./errors";
 
 export type SessionData = { ownerId?: string; csrfToken?: string };
 
-const sessionOptions = {
-  password: process.env.AUTH_SECRET ?? "corrector-examenes-local-secret-change-in-production-32chars",
-  cookieName: "exam_corrector_session",
-  cookieOptions: { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax" as const, maxAge: 60 * 60 * 8, path: "/" },
-};
-
 export async function getSession() {
-  return getIronSession<SessionData>(await cookies(), sessionOptions);
+  const password = process.env.AUTH_SECRET;
+  if (!password) throw new AppError("AUTH_NOT_CONFIGURED", "AUTH_SECRET no está configurado.", 503);
+  return getIronSession<SessionData>(await cookies(), {
+    password,
+    cookieName: "exam_corrector_session",
+    cookieOptions: { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax" as const, maxAge: 60 * 60 * 8, path: "/" },
+  });
 }
 
 export async function requireOwner() {

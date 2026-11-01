@@ -9,6 +9,7 @@ Base inicial de una aplicación privada para preparar solucionarios y revisar no
 - Puntuación determinista para test y secciones ponderadas.
 - Sesión de propietario sellada con `iron-session` y validación de contraseña `scrypt`.
 - Repositorio de exámenes con manifiesto JSON, hashes y control ETag/CAS.
+- Workflow SDK integrado con una sonda de dos pasos reanudable.
 - API mínima para sesión, exámenes y comprobación de capacidades.
 - Pruebas deterministas de puntuación y concurrencia del repositorio.
 
@@ -47,6 +48,7 @@ Copiar los nombres de `.env.example` al entorno local o de Vercel sin incluir se
 - `GET /api/exams` y `POST /api/exams`.
 - `GET /api/exams/:id` y `PATCH /api/exams/:id` con `expectedEtag`.
 - `POST /api/settings/check-providers`.
+- `POST /api/phase0/providers`, sonda interna sintética de Gemini/DeepSeek y búsqueda.
 - `POST /api/uploads/authorize`, token privado limitado por propietario, MIME y tamaño.
 
 Todas las mutaciones comprueban sesión, origen y esquemas. Las respuestas de error contienen código estable, `requestId` y si el error es reintentable.

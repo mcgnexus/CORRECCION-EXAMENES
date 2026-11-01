@@ -9,8 +9,11 @@ export async function POST(request: Request) {
   const requestId = crypto.randomUUID();
   try {
     assertSameOrigin(request);
-    const configuredLogin = process.env.ADMIN_LOGIN ?? "ACPL";
-    const passwordHash = process.env.ADMIN_PASSWORD_HASH ?? "scrypt$29099c89e6ca6687c697f8a9422c805e$ae1f75abcab22b2221a494164d45d5287cadeabca8e079fc197c07e1974a8796";
+    const configuredLogin = process.env.ADMIN_LOGIN;
+    const passwordHash = process.env.ADMIN_PASSWORD_HASH;
+    if (!process.env.AUTH_SECRET || !configuredLogin || !passwordHash) {
+      throw new AppError("AUTH_NOT_CONFIGURED", "La autenticación no está configurada.", 503);
+    }
     const input = loginSchema.parse(await request.json());
     if (input.login !== configuredLogin || !verifyPasswordHash(input.password, passwordHash)) {
       throw new AppError("INVALID_CREDENTIALS", "Credenciales no válidas.", 401);
