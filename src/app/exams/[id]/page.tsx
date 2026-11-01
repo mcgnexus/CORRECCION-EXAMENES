@@ -23,6 +23,7 @@ export default function ExamDetailPage() {
   const [groupLabel, setGroupLabel] = useState("Entrega");
   const [progress, setProgress] = useState<Record<string, number>>({});
   const [message, setMessage] = useState<string | null>(null);
+  const [extracting, setExtracting] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -90,6 +91,16 @@ export default function ExamDetailPage() {
     setSelectedGroupIds([]);
   }
 
+  async function extractStructure() {
+    setExtracting(true);
+    setMessage(null);
+    const response = await fetch(`/api/exams/${examId}/extract`, { method: "POST", headers: { "content-type": "application/json", origin: window.location.origin, "idempotency-key": crypto.randomUUID() }, body: JSON.stringify({ expectedPagesEtag: manifest.etag, language: "es" }) });
+    const payload = await response.json() as { data?: { revisionId?: string }; error?: { message?: string } };
+    setExtracting(false);
+    if (!response.ok || !payload.data?.revisionId) { setMessage(payload.error?.message ?? "No se pudo iniciar la extracción."); return; }
+    window.location.href = `/exams/${examId}/revisions/${payload.data.revisionId}`;
+  }
+
   const previewUrl = selectedAsset ? `/api/assets/${selectedAsset.assetId}/content` : null;
   return (
     <main className="shell">
@@ -97,6 +108,7 @@ export default function ExamDetailPage() {
       {loading ? <p className="intro">Cargando examen...</p> : exam ? <section>
         <h1>{exam.title}</h1>
         <p className="intro">{exam.subject}. Los originales permanecen privados; las transformaciones se guardan como revisión del manifiesto.</p>
+        <div className="actions"><button className="button" type="button" disabled={extracting || manifest.pages.length === 0} onClick={extractStructure}>{extracting ? "Iniciando extracción..." : "Extraer estructura del examen"}</button></div>
         {message ? <p className="notice" role="status">{message}</p> : null}
         <div className="detail-grid">
           <div className="panel">

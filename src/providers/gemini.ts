@@ -1,4 +1,5 @@
-import { providerProposalSchema, ProviderError, parseProviderJson, type ProviderCapabilities, type ProviderProposal } from "./contracts";
+import { z } from "zod";
+import { providerProposalSchema, ProviderError, parseProviderJson, type ProviderCapabilities, type ProviderProposal, withProviderRetry } from "./contracts";
 
 const endpoint = "https://generativelanguage.googleapis.com/v1beta/models";
 
@@ -18,7 +19,8 @@ async function request(model: string, body: unknown) {
   });
   if (!response.ok) {
     const retryable = response.status === 429 || response.status >= 500;
-    throw new ProviderError("GEMINI_REQUEST_FAILED", `Gemini respondió HTTP ${response.status}.`, retryable, response.status);
+    const retryAfter = Number(response.headers.get("retry-after"));
+    throw new ProviderError("GEMINI_REQUEST_FAILED", `Gemini respondió HTTP ${response.status}.`, retryable, response.status, Number.isFinite(retryAfter) ? retryAfter * 1_000 : undefined);
   }
   return response.json() as Promise<Record<string, unknown>>;
 }
@@ -33,21 +35,27 @@ function extractText(payload: Record<string, unknown>) {
 }
 
 export async function solveWithGemini(prompt: string, options: { parts?: unknown[]; useSearch?: boolean } = {}): Promise<ProviderProposal> {
-  const model = modelName();
+  const result = await generateGeminiJson(prompt, providerProposalSchema, { ...options, model: "solve" });
+  return { answer: result.answer, justification: result.justification ?? "", doubts: result.doubts ?? [], sourceEvidence: result.sourceEvidence ?? [], reviewScope: result.reviewScope };
+}
+
+export async function generateGeminiJson<T>(prompt: string, schema: z.ZodType<T>, options: { parts?: unknown[]; useSearch?: boolean; model?: "solve" | "transcribe" } = {}): Promise<T> {
+  const model = options.model === "transcribe" ? process.env.GEMINI_TRANSCRIBE_MODEL : modelName();
+  if (!model) throw new ProviderError("MODEL_NOT_CONFIGURED", "El modelo Gemini no está configurado.", false);
   const body: Record<string, unknown> = {
     contents: [{ role: "user", parts: options.parts ?? [{ text: prompt }] }],
-    generationConfig: { responseMimeType: "application/json" },
+    generationConfig: options.useSearch ? {} : { responseMimeType: "application/json" },
   };
   if (options.useSearch) {
     // La forma exacta de la herramienta debe validarse contra la versión/API elegida en Fase 0.
     body.tools = [{ google_search: {} }];
   }
-  const text = extractText(await request(model, body));
+  const text = extractText(await withProviderRetry(() => request(model, body)));
   if (!text) throw new ProviderError("EMPTY_PROVIDER_OUTPUT", "Gemini no devolvió contenido textual.", false);
   let parsed: unknown;
   try { parsed = JSON.parse(text); } catch { throw new ProviderError("INVALID_PROVIDER_JSON", "Gemini devolvió JSON inválido.", false); }
   const normalized = parsed && typeof parsed === "object" ? { ...(parsed as Record<string, unknown>), reviewScope: (parsed as Record<string, unknown>).reviewScope ?? "text_only" } : parsed;
-  return parseProviderJson(normalized, providerProposalSchema);
+  return parseProviderJson(normalized, schema);
 }
 
 export function geminiCapabilities(): ProviderCapabilities {

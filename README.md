@@ -11,6 +11,7 @@ Base inicial de una aplicación privada para preparar solucionarios y revisar no
 - Repositorio de exámenes con manifiesto JSON, hashes y control ETag/CAS.
 - Ingesta documental con assets validados, páginas, visor autenticado y borrado seguro.
 - Workflow SDK integrado con una sonda de dos pasos reanudable.
+- Extracción y solucionario dual Gemini/DeepSeek con revisión humana y CAS.
 - API mínima para sesión, exámenes y comprobación de capacidades.
 - Pruebas deterministas de puntuación y concurrencia del repositorio.
 
@@ -58,4 +59,4 @@ Todas las mutaciones comprueban sesión, origen y esquemas. Las respuestas de er
 
 ## Próximo hito
 
-Consultar `docs/phase0-report.md` y `docs/phase1-report.md` para los resultados de Preview. El siguiente hito es extracción/solucionario; no procesar datos reales con IA hasta configurar y verificar Gemini/DeepSeek en Preview.
+Consultar `docs/phase0-report.md`, `docs/phase1-report.md` y `docs/phase2-report.md` para los resultados de Preview. El siguiente hito es OMR y corrección de entregas; no cerrar notas sin revisión humana.
