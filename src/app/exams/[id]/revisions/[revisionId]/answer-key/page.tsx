@@ -24,8 +24,23 @@ export default function AnswerKeyPage() {
   const [etag, setEtag] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
   const [draft, setDraft] = useState<Record<string, { selected: string; text: string; maxPoints: number }>>({});
 
+  async function deleteAnswerKey() {
+    if (!window.confirm("¿Eliminar el solucionario generado? Podrás regenerarlo después.")) return;
+    setDeleting(true);
+    const response = await fetch(`/api/exams/${params.id}/revisions/${params.revisionId}/answer-key`, { method: "DELETE", headers: { origin: window.location.origin } });
+    setDeleting(false);
+    if (!response.ok) {
+      const payload = await response.json() as { error?: { message?: string } };
+      setMessage(payload.error?.message ?? "No se pudo eliminar el solucionario.");
+      return;
+    }
+    await load();
+    setMessage("Solucionario eliminado. Puedes generarlo de nuevo.");
+  }
   const load = useCallback(async () => {
     const response = await fetch(`/api/exams/${params.id}/revisions/${params.revisionId}/solutions`);
     const payload = await response.json() as { data?: Payload; error?: { message?: string } };
@@ -117,7 +132,7 @@ export default function AnswerKeyPage() {
           </div> : <>
           <div className="actions">
             <button className="button" type="button" disabled={busy} onClick={autofill}>{data.answerKey ? "Regenerar con IA" : "Generar solucionario con IA"}</button>
-            <button className="button secondary" type="button" disabled={busy || !data.answerKey} onClick={save}>Guardar cambios</button>
+            <button className="button secondary" type="button" disabled={busy || deleting || !data.answerKey} onClick={deleteAnswerKey}>{deleting ? "Eliminando..." : "Eliminar solucionario"}</button>
             <button className="button" type="button" disabled={busy || !data.answerKey || approved} onClick={approve}>Aprobar solucionario</button>
             <button className="button secondary" type="button" disabled={busy || !approved} onClick={createBatch}>Crear lote de corrección</button>
           </div>

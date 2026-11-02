@@ -29,17 +29,20 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   } catch (error) { return errorResponse(error, requestId); }
 }
 
-export async function PATCH(request: Request, context: { params: Promise<{ id: string; revisionId: string }> }) {
+export async function DELETE(request: Request, context: { params: Promise<{ id: string; revisionId: string }> }) {
   const requestId = crypto.randomUUID();
   try {
     assertSameOrigin(request);
     const { ownerId } = await requireOwner();
     const params = await context.params;
-    const input = patchSchema.parse(await request.json());
-    const ensured = await ensureAnswerKey(ownerId, params.id, params.revisionId);
-    const current = ensured.answerKey;
-    const patch = { ...input, decisions: input.decisions ? Object.fromEntries(Object.entries(input.decisions).map(([key, value]) => [key, answerKeyRevisionSchema.shape.decisions.parse({ [key]: value })[key]])) : undefined };
-    const updated = await getAnswerKeyRepository().update(ownerId, params.id, current.value.answerKeyRevisionId, input.expectedEtag, patch);
-    return Response.json({ data: updated.answerKey, requestId }, { headers: { "x-request-id": requestId, etag: updated.etag } });
+    const revision = await getExamRevisionRepository().get(ownerId, params.id, params.revisionId);
+    if (!revision) throw new AppError("NOT_FOUND", "Revisión no encontrada.", 404);
+    if (!revision.value.answerKeyRevisionId) throw new AppError("NOT_FOUND", "No hay solucionario generado para esta revisión.", 404);
+    const answerKey = await getAnswerKeyRepository().get(ownerId, params.id, revision.value.answerKeyRevisionId);
+    if (answerKey?.value.status === "approved") throw new AppError("ANSWER_KEY_APPROVED", "No se puede eliminar un solucionario aprobado.", 409);
+    const { getBlobStore } = await import("@/repositories/blob-store");
+    await getBlobStore().delete(`owners/${ownerId}/exams/${params.id}/answer-keys/${revision.value.answerKeyRevisionId}/manifest.json`);
+    const updated = await getExamRevisionRepository().update(ownerId, params.id, params.revisionId, revision.etag, { answerKeyRevisionId: undefined, status: "structure_review", blockingIssues: [] });
+    return Response.json({ data: updated.revision, requestId }, { headers: { "x-request-id": requestId, etag: updated.etag } });
   } catch (error) { return errorResponse(error, requestId); }
 }
