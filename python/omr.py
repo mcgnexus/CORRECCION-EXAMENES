@@ -80,8 +80,12 @@ def _bubble_fill(gray: np.ndarray, bubble: BubbleRegion) -> float:
     interior = crop[margin_y:-margin_y or None, margin_x:-margin_x or None]
     if interior.size == 0:
         interior = crop
-    threshold = cv2.threshold(interior, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
-    return float(np.mean(threshold > 0))
+    # Otsu degenera en regiones unimodales (todo oscuro o todo claro); se combina
+    # con un umbral fijo y se conserva el mayor de los dos rellenos.
+    otsu = cv2.threshold(interior, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
+    otsu_fill = float(np.mean(otsu > 0))
+    fixed_fill = float(np.mean(interior < 100))
+    return max(otsu_fill, fixed_fill)
 
 
 def process_image(image_bytes: bytes, template: OMRTemplate, *, threshold: float = 0.35, margin: float = 0.08) -> dict[str, Any]:
