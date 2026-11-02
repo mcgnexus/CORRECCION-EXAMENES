@@ -11,6 +11,8 @@ const patchSchema = z.object({
   errorCode: z.string().min(1).optional(),
   retryable: z.boolean().optional(),
   outputRefs: z.array(z.string().min(1)).optional(),
+  phase: z.string().min(1).optional(),
+  progress: z.object({ phase: z.string().min(1), current: z.number().int().nonnegative(), completed: z.number().int().nonnegative(), total: z.number().int().nonnegative(), percent: z.number().min(0).max(100) }).optional(),
 });
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
@@ -32,7 +34,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const { ownerId } = await requireOwner();
     const { expectedEtag, ...patch } = patchSchema.parse(await request.json());
     const job = await getJobRepository().update(ownerId, (await context.params).id, expectedEtag, patch);
-    return Response.json({ data: job, requestId }, { headers: { "x-request-id": requestId } });
+    const current = await getJobRepository().getWithMeta(ownerId, (await context.params).id);
+    return Response.json({ data: job, requestId }, { headers: { "x-request-id": requestId, ...(current ? { etag: current.etag } : {}) } });
   } catch (error) {
     return errorResponse(error, requestId);
   }

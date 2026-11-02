@@ -4,5 +4,8 @@
     "api/**/*.py": {
       "excludeFiles": "{tests/**,__tests__/**,**/*.test.py,fixtures/**,**/__pycache__/**}"
     }
-  }
+  },
+  "crons": [
+    { "path": "/api/cron/cleanup-exports", "schedule": "0 * * * *" }
+  ]
 }

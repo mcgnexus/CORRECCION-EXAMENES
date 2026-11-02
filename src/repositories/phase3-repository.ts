@@ -73,7 +73,7 @@ export class BatchRepository extends JsonRepository {
     return batches;
   }
 
-  async update(ownerId: string, examId: string, batchId: string, expectedEtag: string, patch: Partial<Pick<Batch, "state" | "submissionIds" | "blockingIssues">>) {
+  async update(ownerId: string, examId: string, batchId: string, expectedEtag: string, patch: Partial<Pick<Batch, "state" | "submissionIds" | "blockingIssues" | "closedAt" | "closedBy">>) {
     const current = await this.get(ownerId, examId, batchId);
     if (!current) throw new AppError("NOT_FOUND", "Lote no encontrado.", 404);
     return this.applyUpdate<Batch>(this.path(ownerId, examId, batchId), batchSchema, current, expectedEtag, patch);
@@ -125,7 +125,12 @@ export class OmrReadingRepository extends JsonRepository {
     return (await Promise.all(readingIds.map((readingId) => this.get(ownerId, readingId)))).filter((reading): reading is { value: OmrReading; etag: string } => Boolean(reading));
   }
 
-  async update(ownerId: string, readingId: string, expectedEtag: string, patch: Partial<Pick<OmrReading, "status" | "rows" | "errorCode">>) {
+  async findByInput(ownerId: string, readingIds: string[], assetId: string, templateRevisionId: string, inputHash: string) {
+    const readings = await this.list(ownerId, readingIds);
+    return readings.find((item) => item.value.assetId === assetId && item.value.templateRevisionId === templateRevisionId && item.value.inputHash === inputHash) ?? null;
+  }
+
+  async update(ownerId: string, readingId: string, expectedEtag: string, patch: Partial<Pick<OmrReading, "status" | "rows" | "alignment" | "errorCode">>) {
     const current = await this.get(ownerId, readingId);
     if (!current) throw new AppError("NOT_FOUND", "Lectura no encontrada.", 404);
     return this.applyUpdate<OmrReading>(this.path(ownerId, readingId), omrReadingSchema, current, expectedEtag, patch);

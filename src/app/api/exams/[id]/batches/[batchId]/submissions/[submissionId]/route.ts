@@ -41,6 +41,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const params = await context.params;
     const submission = await getSubmissionRepository().get(ownerId, params.batchId, params.submissionId);
     if (!submission) throw new AppError("NOT_FOUND", "Entrega no encontrada.", 404);
+    const batch = await getBatchRepository().get(ownerId, params.id, params.batchId);
+    if (!batch) throw new AppError("NOT_FOUND", "Lote no encontrado.", 404);
+    if (batch.value.state === "closed") throw new AppError("BATCH_CLOSED", "No se puede modificar un lote cerrado.", 409);
     const body = await request.json() as { action?: string };
     if (body.action === "decide") {
       const input = decideSchema.parse(body);
@@ -84,8 +87,6 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       const refreshed = await getSubmissionRepository().get(ownerId, params.batchId, params.submissionId);
       if (!refreshed) throw new AppError("NOT_FOUND", "Entrega no encontrada.", 404);
       if (!refreshed.value.confirmedIdentity) throw new AppError("SUBMISSION_UNASSIGNED", "Confirma la identidad antes de puntuar.", 409);
-      const batch = await getBatchRepository().get(ownerId, params.id, params.batchId);
-      if (!batch) throw new AppError("NOT_FOUND", "Lote no encontrado.", 404);
       const answerKey = await getAnswerKeyRepository().get(ownerId, params.id, batch.value.answerKeyRevisionId);
       if (!answerKey || answerKey.value.status !== "approved") throw new AppError("ANSWER_KEY_STALE", "El solucionario debe estar aprobado.", 409);
       if (answerKey.value.scoringPolicyRevisionId !== batch.value.scoringPolicyRevisionId) throw new AppError("SCORING_POLICY_MISMATCH", "La política del lote no coincide con la del solucionario.", 409);

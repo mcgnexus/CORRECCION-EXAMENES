@@ -29,6 +29,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const params = await context.params;
     const batch = await getBatchRepository().get(ownerId, params.id, params.batchId);
     if (!batch) throw new AppError("NOT_FOUND", "Lote no encontrado.", 404);
+    if (batch.value.state === "closed") throw new AppError("BATCH_CLOSED", "No se pueden añadir entregas a un lote cerrado.", 409);
     const input = createSchema.parse(await request.json());
     if (input.assetIds.length > batch.value.maxPages) throw new AppError("BATCH_PAGE_LIMIT", "La entrega supera el límite de páginas del lote.", 413);
     const assets = await Promise.all(input.assetIds.map((assetId) => getAssetRepository().getWithMeta(ownerId, assetId)));

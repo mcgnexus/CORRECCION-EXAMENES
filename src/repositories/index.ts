@@ -8,6 +8,8 @@ import { DocumentPagesRepository } from "./document-pages-repository";
 import { AnswerKeyRepository, ExamRevisionRepository, ProviderRunRepository, SolutionProposalRepository, StructureProposalRepository } from "./phase2-repository";
 import { BatchRepository, ManualDecisionRepository, OmrReadingRepository, OmrTemplateRepository, ScoreSnapshotRepository, SubmissionRepository } from "./phase3-repository";
 import { EvaluationRepository, ResponseDecisionRepository, ResponseRegionRepository, TranscriptionRepository } from "./phase4-repository";
+import { ExportRepository } from "./export-repository";
+import { ProviderLeaseRepository } from "./provider-lease-repository";
 
 export function getExamRepository() {
   return new ExamRepository(getBlobStore());
@@ -48,3 +50,5 @@ export function getResponseRegionRepository() { return new ResponseRegionReposit
 export function getTranscriptionRepository() { return new TranscriptionRepository(getBlobStore()); }
 export function getEvaluationRepository() { return new EvaluationRepository(getBlobStore()); }
 export function getResponseDecisionRepository() { return new ResponseDecisionRepository(getBlobStore()); }
+export function getExportRepository() { return new ExportRepository(getBlobStore()); }
+export function getProviderLeaseRepository() { return new ProviderLeaseRepository(getBlobStore()); }

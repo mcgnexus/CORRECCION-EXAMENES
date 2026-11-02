@@ -7,7 +7,7 @@ function manifestPath(ownerId: string, assetId: string) { return `owners/${owner
 function encode(value: unknown) { return new TextEncoder().encode(JSON.stringify(value)); }
 function decode<T>(body: Uint8Array) { return JSON.parse(new TextDecoder().decode(body)) as T; }
 
-export type NewAsset = Omit<Asset, "assetId" | "schemaVersion" | "createdAt" | "updatedAt" | "etag"> & { assetId?: string };
+export type NewAsset = Omit<Asset, "assetId" | "schemaVersion" | "createdAt" | "updatedAt" | "etag" | "sourceRefs" | "metadata"> & { assetId?: string; sourceRefs?: string[]; metadata?: Record<string, unknown> };
 
 export class AssetRepository {
   constructor(private readonly blobs: BlobStore) {}

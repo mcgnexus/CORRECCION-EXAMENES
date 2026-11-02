@@ -40,6 +40,10 @@ export async function solveWithGemini(prompt: string, options: { parts?: unknown
 }
 
 export async function generateGeminiJson<T>(prompt: string, schema: z.ZodType<T>, options: { parts?: unknown[]; useSearch?: boolean; model?: "solve" | "transcribe" } = {}): Promise<T> {
+  return (await generateGeminiJsonWithMetadata(prompt, schema, options)).value;
+}
+
+export async function generateGeminiJsonWithMetadata<T>(prompt: string, schema: z.ZodType<T>, options: { parts?: unknown[]; useSearch?: boolean; model?: "solve" | "transcribe" } = {}): Promise<{ value: T; usage?: { inputTokens?: number; outputTokens?: number } }> {
   const model = options.model === "transcribe" ? process.env.GEMINI_TRANSCRIBE_MODEL : modelName();
   if (!model) throw new ProviderError("MODEL_NOT_CONFIGURED", "El modelo Gemini no está configurado.", false);
   const body: Record<string, unknown> = {
@@ -50,12 +54,18 @@ export async function generateGeminiJson<T>(prompt: string, schema: z.ZodType<T>
     // La forma exacta de la herramienta debe validarse contra la versión/API elegida en Fase 0.
     body.tools = [{ google_search: {} }];
   }
-  const text = extractText(await withProviderRetry(() => request(model, body)));
+  const payload = await withProviderRetry(() => request(model, body));
+  const text = extractText(payload);
   if (!text) throw new ProviderError("EMPTY_PROVIDER_OUTPUT", "Gemini no devolvió contenido textual.", false);
   let parsed: unknown;
   try { parsed = JSON.parse(text); } catch { throw new ProviderError("INVALID_PROVIDER_JSON", "Gemini devolvió JSON inválido.", false); }
   const normalized = parsed && typeof parsed === "object" ? { ...(parsed as Record<string, unknown>), reviewScope: (parsed as Record<string, unknown>).reviewScope ?? "text_only" } : parsed;
-  return parseProviderJson(normalized, schema);
+  const usageMetadata = payload.usageMetadata;
+  const usage = usageMetadata && typeof usageMetadata === "object" ? {
+    inputTokens: typeof (usageMetadata as Record<string, unknown>).promptTokenCount === "number" ? (usageMetadata as Record<string, number>).promptTokenCount : undefined,
+    outputTokens: typeof (usageMetadata as Record<string, unknown>).candidatesTokenCount === "number" ? (usageMetadata as Record<string, number>).candidatesTokenCount : undefined,
+  } : undefined;
+  return { value: parseProviderJson(normalized, schema), usage };
 }
 
 export function geminiCapabilities(): ProviderCapabilities {

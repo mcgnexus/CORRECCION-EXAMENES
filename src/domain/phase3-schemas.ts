@@ -66,6 +66,8 @@ export const batchSchema = z.object({
   maxPages: z.number().int().positive().default(30),
   submissionIds: z.array(idSchema),
   blockingIssues: z.array(z.string()),
+  closedAt: isoDateSchema.optional(),
+  closedBy: idSchema.optional(),
   createdAt: isoDateSchema,
   updatedAt: isoDateSchema,
 });

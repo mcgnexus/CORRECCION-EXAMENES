@@ -13,8 +13,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const current = await repository.getWithMeta(ownerId, (await context.params).id);
     if (!current) throw new AppError("NOT_FOUND", "Trabajo no encontrado.", 404);
     if (["completed", "failed", "cancelled"].includes(current.job.status)) throw new AppError("JOB_NOT_CANCELLABLE", "El trabajo ya no se puede cancelar.", 409);
-    const job = await repository.update(ownerId, current.job.jobId, expectedEtag, { status: "cancel_requested" });
-    return Response.json({ data: job, requestId }, { status: 202, headers: { "x-request-id": requestId } });
+    const job = await repository.update(ownerId, current.job.jobId, expectedEtag, { status: "cancel_requested", cancelRequestedAt: new Date().toISOString() });
+    const refreshed = await repository.getWithMeta(ownerId, current.job.jobId);
+    return Response.json({ data: job, requestId }, { status: 202, headers: { "x-request-id": requestId, ...(refreshed ? { etag: refreshed.etag } : {}) } });
   } catch (error) {
     return errorResponse(error, requestId);
   }

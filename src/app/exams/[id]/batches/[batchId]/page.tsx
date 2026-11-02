@@ -11,6 +11,10 @@ type ResponseRegion = { regionId: string; questionId: string; questionType: "sho
 type Transcription = { transcriptionId: string; questionId: string; literalText: string; normalizedText?: string; correctedText?: string; confidence: number; uncertainSpans: Array<{ text: string; reason: string }>; state: string; etag: string };
 type Evaluation = { evaluationId: string; questionId: string; transcriptionId: string; provider: "gemini" | "deepseek"; criterionScores: Array<{ criterionId: string; points: number; maxPoints: number; evidence: string; incidents: string[] }>; totalPoints: number; maximumPoints: number; explanation: string; state: string };
 type ResponseData = { regions: { regionRevisionId: string; regions: ResponseRegion[] } | null; transcriptions: Transcription[]; evaluations: Evaluation[]; decisions: Array<{ questionId: string; decisionId: string }>; blockingIssues: string[] };
+type Batch = { batchId: string; state: string; submissionIds: string[]; answerKeyRevisionId: string; templateRevisionId: string; scoringPolicyRevisionId: string };
+type JobProgress = { phase: string; current: number; completed: number; total: number; percent: number; totalSubmissions?: number; completedSubmissions?: number; failedSubmissions?: number; blockedSubmissions?: number; totalPages?: number; completedPages?: number; totalQuestions?: number; completedQuestions?: number; currentSubmissionId?: string; currentPageId?: string; currentQuestionId?: string };
+type BatchJob = { jobId: string; status: string; progress: JobProgress; outputRefs: string[]; errorCode?: string; cost?: { providerCalls?: number; inputTokens?: number; outputTokens?: number; retryCount?: number; amount?: number; currency?: string } };
+type ExportJob = BatchJob;
 
 export default function BatchPage() {
   const params = useParams<{ id: string; batchId: string }>();
@@ -32,15 +36,46 @@ export default function BatchPage() {
   const [identity, setIdentity] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [batch, setBatch] = useState<Batch | null>(null);
+  const [batchEtag, setBatchEtag] = useState("");
+  const [exportFormats, setExportFormats] = useState<string[]>(["csv", "xlsx", "pdf"]);
+  const [includeOriginal, setIncludeOriginal] = useState(false);
+  const [exportJob, setExportJob] = useState<ExportJob | null>(null);
+  const [exportJobEtag, setExportJobEtag] = useState("");
+  const [batchJob, setBatchJob] = useState<BatchJob | null>(null);
+  const [batchJobEtag, setBatchJobEtag] = useState("");
 
   const load = useCallback(async () => {
     const response = await fetch(base);
     const payload = await response.json() as { data?: Submission[]; error?: { message?: string } };
     if (!response.ok || !payload.data) throw new Error(payload.error?.message ?? "No se pudo cargar el lote.");
     setSubmissions(payload.data);
-  }, [base]);
+    const batchResponse = await fetch(`/api/exams/${params.id}/batches/${params.batchId}`);
+    const batchPayload = await batchResponse.json() as { data?: Batch; error?: { message?: string } };
+    if (batchResponse.ok && batchPayload.data) { setBatch(batchPayload.data); setBatchEtag(batchResponse.headers.get("etag") ?? ""); }
+  }, [base, params.batchId, params.id]);
 
   useEffect(() => { load().catch((error) => setMessage(error instanceof Error ? error.message : "Error de carga.")); }, [load]);
+
+  useEffect(() => {
+    if (!exportJob || !["queued", "running", "cancel_requested"].includes(exportJob.status)) return;
+    const timer = window.setInterval(async () => {
+      const response = await fetch(`/api/jobs/${exportJob.jobId}`);
+      const payload = await response.json() as { data?: ExportJob };
+      if (payload.data) { setExportJob(payload.data); setExportJobEtag(response.headers.get("etag") ?? exportJobEtag); }
+    }, 2000);
+    return () => window.clearInterval(timer);
+  }, [exportJob, exportJobEtag]);
+
+  useEffect(() => {
+    if (!batchJob || !["queued", "running", "cancel_requested"].includes(batchJob.status)) return;
+    const timer = window.setInterval(async () => {
+      const response = await fetch(`/api/jobs/${batchJob.jobId}`);
+      const payload = await response.json() as { data?: BatchJob };
+      if (payload.data) { setBatchJob(payload.data); setBatchJobEtag(response.headers.get("etag") ?? batchJobEtag); await load(); }
+    }, 2000);
+    return () => window.clearInterval(timer);
+  }, [batchJob, batchJobEtag, load]);
 
   async function openSubmission(submission: Submission) {
     setSelected(submission);
@@ -106,6 +141,16 @@ export default function BatchPage() {
     const payload = await response.json() as { error?: { message?: string } };
     setMessage(response.ok ? "Lectura OMR iniciada." : payload.error?.message ?? "No se pudo iniciar OMR.");
     await load();
+  }
+
+  async function startBatchProcessing() {
+    if (!batch || !batchEtag) return;
+    setBusy(true);
+    const response = await fetch(`/api/exams/${params.id}/batches/${params.batchId}/start`, { method: "POST", headers: { "content-type": "application/json", origin: window.location.origin, "idempotency-key": crypto.randomUUID() }, body: JSON.stringify({ expectedEtag: batchEtag }) });
+    const payload = await response.json() as { data?: { job?: BatchJob }; error?: { message?: string } };
+    setBusy(false);
+    if (!response.ok) { setMessage(payload.error?.message ?? "No se pudo iniciar el procesamiento."); return; }
+    setBatchJob(payload.data?.job ?? null); setBatchJobEtag(response.headers.get("etag") ?? ""); setMessage("Procesamiento masivo iniciado.");
   }
 
   function updateRegionFromPointer(event: React.PointerEvent<HTMLDivElement>) {
@@ -214,6 +259,42 @@ export default function BatchPage() {
     if (response.ok) await load();
   }
 
+  async function finalizeBatch() {
+    if (!batch || !batchEtag) return;
+    setBusy(true);
+    const response = await fetch(`/api/exams/${params.id}/batches/${params.batchId}/finalize`, { method: "POST", headers: { "content-type": "application/json", origin: window.location.origin }, body: JSON.stringify({ expectedEtag: batchEtag }) });
+    const payload = await response.json() as { data?: Batch; error?: { message?: string } };
+    setBusy(false);
+    if (!response.ok) { setMessage(payload.error?.message ?? "No se pudo finalizar el lote."); return; }
+    setBatch(payload.data ?? batch); setBatchEtag(response.headers.get("etag") ?? batchEtag); setMessage("Lote finalizado.");
+  }
+
+  async function startExport() {
+    if (!batch || !batchEtag || exportFormats.length === 0) return;
+    setBusy(true);
+    const response = await fetch(`/api/exams/${params.id}/batches/${params.batchId}/export`, { method: "POST", headers: { "content-type": "application/json", origin: window.location.origin, "idempotency-key": crypto.randomUUID() }, body: JSON.stringify({ formats: exportFormats, includeOriginal, expectedEtag: batchEtag }) });
+    const payload = await response.json() as { data?: { job?: ExportJob }; error?: { message?: string } };
+    setBusy(false);
+    if (!response.ok) { setMessage(payload.error?.message ?? "No se pudo iniciar la exportación."); return; }
+    setExportJob(payload.data?.job ?? null); setExportJobEtag(response.headers.get("etag") ?? ""); setMessage("Exportación iniciada.");
+  }
+
+  async function updateExportJob(action: "cancel" | "retry") {
+    if (!exportJob || !exportJobEtag) return;
+    const response = await fetch(`/api/jobs/${exportJob.jobId}/${action}`, { method: "POST", headers: { origin: window.location.origin, "if-match": exportJobEtag } });
+    const payload = await response.json() as { data?: ExportJob; error?: { message?: string } };
+    if (payload.data) { setExportJob(payload.data); setExportJobEtag(response.headers.get("etag") ?? exportJobEtag); }
+    setMessage(response.ok ? `Exportación ${action === "cancel" ? "cancelada" : "reintentada"}.` : payload.error?.message ?? "No se pudo actualizar el job.");
+  }
+
+  async function updateBatchJob(action: "cancel" | "retry") {
+    if (!batchJob || !batchJobEtag) return;
+    const response = await fetch(`/api/jobs/${batchJob.jobId}/${action}`, { method: "POST", headers: { origin: window.location.origin, "if-match": batchJobEtag } });
+    const payload = await response.json() as { data?: BatchJob; error?: { message?: string } };
+    if (payload.data) { setBatchJob(payload.data); setBatchJobEtag(response.headers.get("etag") ?? batchJobEtag); }
+    setMessage(response.ok ? `Procesamiento ${action === "cancel" ? "cancelado" : "reintentado"}.` : payload.error?.message ?? "No se pudo actualizar el procesamiento.");
+  }
+
   return (
     <main className="shell">
       <header className="topbar"><a className="eyebrow" href={`/exams/${params.id}`}>Volver al examen</a><span className="status">Corrección de entregas</span></header>
@@ -221,6 +302,7 @@ export default function BatchPage() {
         <h1>Lote de corrección.</h1>
         <p className="intro">Identidad confirmada, lectura OMR y decisión humana antes de puntuar. Las incidencias bloquean el cierre.</p>
         {message ? <p className="notice" role="status">{message}</p> : null}
+        {batch ? <><section className="panel"><h2>Procesamiento masivo</h2><p className="intro">Estado: {batch.state}. El job procesa páginas y respuestas disponibles y siempre deja la aprobación final para revisión humana.</p><div className="actions"><button className="button" type="button" disabled={busy || batch.state === "closed" || batch.state === "cancelled" || ["queued", "running", "cancel_requested"].includes(batchJob?.status ?? "")} onClick={startBatchProcessing}>Procesar lote</button>{batchJob && ["queued", "running"].includes(batchJob.status) ? <button className="button secondary" type="button" onClick={() => updateBatchJob("cancel")}>Cancelar</button> : null}{batchJob?.status === "failed" && batchJobEtag ? <button className="button secondary" type="button" onClick={() => updateBatchJob("retry")}>Reintentar</button> : null}</div>{batchJob ? <p className="intro">Job {batchJob.jobId}: {batchJob.status}, {batchJob.progress.percent}% ({batchJob.progress.phase}). Submissions {batchJob.progress.completedSubmissions ?? 0}/{batchJob.progress.totalSubmissions ?? 0}; páginas {batchJob.progress.completedPages ?? 0}/{batchJob.progress.totalPages ?? 0}; preguntas {batchJob.progress.completedQuestions ?? 0}/{batchJob.progress.totalQuestions ?? 0}. Incidencias: {batchJob.progress.blockedSubmissions ?? 0}. Llamadas: {batchJob.cost?.providerCalls ?? 0}.</p> : null}</section><section className="panel"><h2>Exportación del lote</h2><p className="intro">Solo un lote cerrado puede exportarse.</p><div className="actions"><label><input type="checkbox" checked={exportFormats.includes("csv")} onChange={(event) => setExportFormats((current) => event.target.checked ? [...new Set([...current, "csv"])] : current.filter((item) => item !== "csv"))} /> CSV</label><label><input type="checkbox" checked={exportFormats.includes("xlsx")} onChange={(event) => setExportFormats((current) => event.target.checked ? [...new Set([...current, "xlsx"])] : current.filter((item) => item !== "xlsx"))} /> XLSX</label><label><input type="checkbox" checked={exportFormats.includes("pdf")} onChange={(event) => setExportFormats((current) => event.target.checked ? [...new Set([...current, "pdf"])] : current.filter((item) => item !== "pdf"))} /> PDF</label><label><input type="checkbox" checked={includeOriginal} onChange={(event) => setIncludeOriginal(event.target.checked)} /> Incluir originales</label></div><div className="actions"><button className="button secondary" type="button" disabled={busy || batch.state === "closed" || ["queued", "running", "cancel_requested"].includes(batchJob?.status ?? "")} onClick={finalizeBatch}>Finalizar lote</button><button className="button" type="button" disabled={busy || batch.state !== "closed" || exportFormats.length === 0} onClick={startExport}>Exportar</button></div>{exportJob ? <><p className="intro">Job {exportJob.jobId}: {exportJob.status}, {exportJob.progress.percent}% ({exportJob.progress.phase}). Salidas: {exportJob.outputRefs.length}</p><div className="actions">{["queued", "running"].includes(exportJob.status) ? <button className="button secondary" type="button" onClick={() => updateExportJob("cancel")}>Cancelar</button> : null}{exportJob.status === "failed" && exportJobEtag ? <button className="button secondary" type="button" onClick={() => updateExportJob("retry")}>Reintentar</button> : null}</div></> : null}{exportJob?.outputRefs.map((outputId) => <a className="eyebrow" href={`/api/exports/${outputId}/download`} key={outputId}>Descargar {outputId.slice(0, 8)}</a>)}</section></> : null}
         <div className="detail-grid">
           <div className="panel">
             <h2>Entregas</h2>

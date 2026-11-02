@@ -13,6 +13,10 @@ export async function reviewWithDeepSeek(prompt: string, options: { messages?: u
 }
 
 export async function reviewWithDeepSeekJson<T>(prompt: string, schema: z.ZodType<T>, options: { messages?: unknown[] } = {}): Promise<T> {
+  return (await reviewWithDeepSeekJsonWithMetadata(prompt, schema, options)).value;
+}
+
+export async function reviewWithDeepSeekJsonWithMetadata<T>(prompt: string, schema: z.ZodType<T>, options: { messages?: unknown[] } = {}): Promise<{ value: T; usage?: { inputTokens?: number; outputTokens?: number } }> {
   const key = process.env.DEEPSEEK_API_KEY;
   if (!key) throw new ProviderError("PROVIDER_NOT_CONFIGURED", "DEEPSEEK_API_KEY no está configurada.", false);
   const response = await withProviderRetry(() => fetch("https://api.deepseek.com/chat/completions", {
@@ -27,13 +31,13 @@ export async function reviewWithDeepSeekJson<T>(prompt: string, schema: z.ZodTyp
     }
     return result;
   }));
-  const payload = (await response.json()) as { choices?: Array<{ message?: { content?: string } }> };
+  const payload = (await response.json()) as { choices?: Array<{ message?: { content?: string } }>; usage?: { prompt_tokens?: number; completion_tokens?: number } };
   const text = payload.choices?.[0]?.message?.content;
   if (!text) throw new ProviderError("EMPTY_PROVIDER_OUTPUT", "DeepSeek no devolvió contenido textual.", false);
   let parsed: unknown;
   try { parsed = JSON.parse(text); } catch { throw new ProviderError("INVALID_PROVIDER_JSON", "DeepSeek devolvió JSON inválido.", false); }
   const normalized = parsed && typeof parsed === "object" ? { ...(parsed as Record<string, unknown>), reviewScope: (parsed as Record<string, unknown>).reviewScope ?? "text_only" } : parsed;
-  return parseProviderJson(normalized, schema);
+  return { value: parseProviderJson(normalized, schema), usage: payload.usage ? { inputTokens: payload.usage.prompt_tokens, outputTokens: payload.usage.completion_tokens } : undefined };
 }
 
 export function deepseekCapabilities(): ProviderCapabilities {
