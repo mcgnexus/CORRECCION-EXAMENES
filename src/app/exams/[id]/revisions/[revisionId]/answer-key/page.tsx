@@ -110,6 +110,11 @@ export default function AnswerKeyPage() {
         <p className="intro">La IA lee el examen y propone una respuesta por pregunta con dos proveedores. Revisa, corrige si hace falta y aprueba: la corrección de los alumnos usará esta resolución.</p>
         {message ? <p className="notice" role="status">{message}</p> : null}
         {!data ? <p className="intro">Cargando...</p> : <>
+          {data.questions.length === 0 ? <div className="notice" role="status">
+            <strong>No hay preguntas para mostrar en esta revisión.</strong>
+            <p>La lectura no produjo una estructura válida, así que no se pudo preparar el solucionario. Vuelve al examen y reintenta para crear una revisión nueva.</p>
+            <a className="button" href={`/exams/${params.id}`}>Volver al examen</a>
+          </div> : <>
           <div className="actions">
             <button className="button" type="button" disabled={busy} onClick={autofill}>{data.answerKey ? "Regenerar con IA" : "Generar solucionario con IA"}</button>
             <button className="button secondary" type="button" disabled={busy || !data.answerKey} onClick={save}>Guardar cambios</button>
@@ -141,6 +146,7 @@ export default function AnswerKeyPage() {
               );
             })}
           </div>
+          </>}
         </>}
       </section>
     </main>

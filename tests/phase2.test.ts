@@ -20,6 +20,15 @@ describe("contratos y resiliencia de Fase 2", () => {
     expect(() => structureModelOutputSchema.parse({ questions: [{ number: 1 }] })).toThrow();
   });
 
+  it("no exige IDs internos al modelo para las opciones", () => {
+    const result = structureModelOutputSchema.parse({
+      questions: [{ number: 1, label: "1", type: "single_choice", text: "¿Cuánto es 2 + 2?", options: [{ label: "A", text: "4" }], pageNumbers: [1], figureBoxes: [], flags: [] }],
+      doubts: [],
+      flags: [],
+    });
+    expect(result.questions[0].options[0]).toEqual({ label: "A", text: "4" });
+  });
+
   it("conserva bloqueos de aprobación en el answer key", () => {
     const answerKey = answerKeyRevisionSchema.parse({ schemaVersion: 1, answerKeyRevisionId: "key-1", examRevisionId: "rev-1", examId: "exam-1", ownerId: "owner-1", status: "review", scoringPolicyRevisionId: "policy-default", decisions: {}, blockingIssues: ["source_missing:q1"], createdAt: "2026-11-01T00:00:00Z", updatedAt: "2026-11-01T00:00:00Z" });
     expect(answerKey.blockingIssues).toContain("source_missing:q1");

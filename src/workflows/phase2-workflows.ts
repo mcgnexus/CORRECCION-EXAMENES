@@ -73,7 +73,7 @@ export async function persistStructure(input: StructureInput, pages: PageInput[]
       model: outcome.model,
       reviewScope: "text_and_visual" as const,
       inputHash,
-      questions: outcome.output.questions.map((question) => ({ ...question, questionId: randomUUID(), pageIds: question.pageNumbers.flatMap((number) => pages.filter((page) => page.pageNumber === number).map((page) => page.pageId)), figureIds: question.figureBoxes.map(() => randomUUID()), dependsOnQuestionIds: [] })),
+      questions: outcome.output.questions.map((question) => ({ ...question, options: question.options.map((option) => ({ ...option, id: randomUUID() })), questionId: randomUUID(), pageIds: question.pageNumbers.flatMap((number) => pages.filter((page) => page.pageNumber === number).map((page) => page.pageId)), figureIds: question.figureBoxes.map(() => randomUUID()), dependsOnQuestionIds: [] })),
       figures: outcome.output.questions.flatMap((question) => question.figureBoxes.map((box) => ({ figureId: randomUUID(), pageId: pages.find((page) => page.pageNumber === question.pageNumbers[0])?.pageId ?? pages[0].pageId, ...box }))),
       doubts: outcome.output.doubts,
       flags: outcome.output.flags,

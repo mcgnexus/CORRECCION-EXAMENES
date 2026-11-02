@@ -54,7 +54,7 @@ export const structureModelOutputSchema = z.object({
     label: z.string().min(1),
     type: questionTypeSchema,
     text: z.string(),
-    options: z.array(structureOptionSchema),
+    options: z.array(z.object({ label: z.string().min(1), text: z.string() })),
     pageNumbers: z.array(z.number().int().positive()),
     figureBoxes: z.array(z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1), width: z.number().gt(0).max(1), height: z.number().gt(0).max(1) })),
     flags: z.array(z.string()),
