@@ -62,17 +62,31 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
     const outcome = await getIdempotencyRepository().execute(ownerId, "exam-autopilot", idempotencyKey, async () => {
       const revision = await revisions.create(ownerId, examId, pages!.etag, pages!.manifest.pages.map((page) => page.pageId));
-      try { await exams.update(ownerId, examId, exam!.etag, { activeRevisionId: revision.revision.examRevisionId, state: "extracting" }); }
-      catch { throw new AppError("AUTOPILOT_START_CONFLICT", "El examen cambió durante el inicio. Reintenta.", 409, true); }
+      let currentExam = exam!;
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+          currentExam = await exams.getWithMeta(ownerId, examId) ?? currentExam;
+          await exams.update(ownerId, examId, currentExam.etag, { activeRevisionId: revision.revision.examRevisionId, state: "extracting" });
+          break;
+        } catch (error) {
+          if (!(error instanceof AppError) || error.code !== "ETAG_CONFLICT" || attempt === 2) throw new AppError("AUTOPILOT_START_CONFLICT", "El examen cambió durante el inicio. Reintenta.", 409, true);
+        }
+      }
       const run = await start(examAutopilotWorkflow, [{ ownerId, examId, revisionId: revision.revision.examRevisionId }]);
-      try {
-        await revisions.update(ownerId, examId, revision.revision.examRevisionId, revision.etag, { workflowRunId: run.runId });
-      } catch {
-        let status: string;
-        try { status = await getRun(run.runId).status; }
-        catch { throw new AppError("AUTOPILOT_STATUS_UNAVAILABLE", "La ejecución arrancó, pero todavía no se pudo confirmar. Reintenta.", 503, true); }
-        if (["queued", "running"].includes(status)) return { revisionId: revision.revision.examRevisionId, runId: run.runId };
-        throw new AppError("AUTOPILOT_START_CONFLICT", "No se pudo asociar la ejecución a la revisión. Reintenta.", 409, true);
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+          const currentRevision = await revisions.get(ownerId, examId, revision.revision.examRevisionId);
+          await revisions.update(ownerId, examId, revision.revision.examRevisionId, currentRevision?.etag ?? revision.etag, { workflowRunId: run.runId });
+          break;
+        } catch (error) {
+          if (!(error instanceof AppError) || error.code !== "ETAG_CONFLICT" || attempt === 2) {
+            let status: string;
+            try { status = await getRun(run.runId).status; }
+            catch { throw new AppError("AUTOPILOT_STATUS_UNAVAILABLE", "La ejecución arrancó, pero todavía no se pudo confirmar. Reintenta.", 503, true); }
+            if (["queued", "running"].includes(status)) return { revisionId: revision.revision.examRevisionId, runId: run.runId };
+            throw new AppError("AUTOPILOT_START_CONFLICT", "No se pudo asociar la ejecución a la revisión. Reintenta.", 409, true);
+          }
+        }
       }
       return { revisionId: revision.revision.examRevisionId, runId: run.runId };
     });
