@@ -24,6 +24,7 @@ export default function ExamDetailPage() {
   const [progress, setProgress] = useState<Record<string, number>>({});
   const [message, setMessage] = useState<string | null>(null);
   const [autopilot, setAutopilot] = useState<{ runId: string; revisionId: string; status: string } | null>(null);
+  const [deletingAssetId, setDeletingAssetId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -75,6 +76,24 @@ export default function ExamDetailPage() {
     }
     await load();
     event.target.value = "";
+  }
+
+  async function deleteAsset(asset: Asset) {
+    if (!window.confirm(`¿Eliminar este documento (${asset.mimeType} · ${formatSize(asset.sizeBytes)}) y todas sus páginas? Esta acción no se puede deshacer.`)) return;
+    setDeletingAssetId(asset.assetId);
+    setMessage(null);
+    try {
+      const response = await fetch(`/api/assets/${asset.assetId}`, { method: "DELETE", headers: { origin: window.location.origin } });
+      const payload = await response.json() as { error?: { message?: string } };
+      if (!response.ok) throw new Error(payload.error?.message ?? "No se pudo eliminar el documento.");
+      setSelectedPageId(null);
+      await load();
+      setMessage("Documento y páginas eliminados.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "No se pudo eliminar el documento.");
+    } finally {
+      setDeletingAssetId(null);
+    }
   }
 
   function updatePage(pageId: string, patch: Partial<Page>) { setManifest((current) => ({ ...current, pages: current.pages.map((page) => page.pageId === pageId ? { ...page, ...patch } : page) })); }
@@ -135,7 +154,7 @@ export default function ExamDetailPage() {
             <h2>Subir documentos</h2>
             <div className="dropzone">PDF, JPEG, PNG o WebP · máximo 25 MB<input type="file" accept="application/pdf,image/jpeg,image/png,image/webp" multiple onChange={handleFiles} /></div>
             {Object.entries(progress).map(([assetId, value]) => <div className="progress" key={assetId}><span style={{ width: `${value}%` }} /></div>)}
-            <div className="asset-list">{assets.map((asset) => <div className="asset-row" key={asset.assetId}><small>{asset.mimeType} · {formatSize(asset.sizeBytes)} · {asset.state}</small><a className="eyebrow" href={`/api/assets/${asset.assetId}/metadata`}>metadata</a></div>)}</div>
+            <div className="asset-list">{assets.map((asset) => <div className="asset-row" key={asset.assetId}><small>{asset.mimeType} · {formatSize(asset.sizeBytes)} · {asset.state}</small><a className="eyebrow" href={`/api/assets/${asset.assetId}/metadata`}>metadata</a><button className="button secondary" type="button" disabled={deletingAssetId !== null} onClick={() => deleteAsset(asset)}>{deletingAssetId === asset.assetId ? "Eliminando..." : "Eliminar"}</button></div>)}</div>
           </div>
           <div className="panel"><h2>Vista previa</h2><div className="preview">{previewUrl && selectedAsset?.mimeType.startsWith("image/") ? <img src={previewUrl} alt="Página del examen" style={{ transform: `rotate(${selectedPage?.rotation ?? 0}deg)` }} /> : previewUrl ? <iframe src={previewUrl} title="PDF del examen" /> : <span className="intro">Selecciona una página</span>}</div></div>
         </div>
