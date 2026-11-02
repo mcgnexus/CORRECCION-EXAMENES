@@ -48,7 +48,7 @@ export default function ExamDetailPage() {
       const status = payload.data?.status ?? "failed";
       setAutopilot((current) => current ? { ...current, status } : current);
       if (status === "completed") window.location.href = `/exams/${examId}/revisions/${payload.data?.output?.revisionId ?? autopilot.revisionId}/answer-key`;
-      if (status === "failed") setMessage(payload.error?.message ?? "La IA no pudo leer y resolver el examen.");
+       if (status === "failed") setMessage("La revisión anterior quedó marcada como obsoleta. Puedes reintentar para generar una revisión nueva.");
     }, 3000);
     return () => window.clearInterval(timer);
   }, [autopilot, examId]);
@@ -111,10 +111,10 @@ export default function ExamDetailPage() {
   async function readAndSolve() {
     setMessage(null);
     const response = await fetch(`/api/exams/${examId}/autopilot`, { method: "POST", headers: { "content-type": "application/json", origin: window.location.origin, "idempotency-key": crypto.randomUUID() }, body: JSON.stringify({ language: "es" }) });
-    const payload = await response.json() as { data?: { runId?: string; revisionId?: string }; error?: { message?: string } };
+    const payload = await response.json() as { data?: { runId?: string; revisionId?: string }; error?: { message?: string; code?: string; retryable?: boolean } };
     if (!response.ok || !payload.data?.runId || !payload.data.revisionId) { setMessage(payload.error?.message ?? "No se pudo iniciar la lectura del examen."); return; }
     setAutopilot({ runId: payload.data.runId, revisionId: payload.data.revisionId, status: "running" });
-    setMessage("La IA está leyendo y resolviendo el examen. Te redirigiremos al solucionario al terminar.");
+    setMessage(payload.error?.code === "AUTOPILOT_STARTING" ? "La ejecución está arrancando; vuelve a intentarlo en unos instantes." : "La IA está leyendo y resolviendo el examen. Te redirigiremos al solucionario al terminar.");
   }
 
   const previewUrl = selectedAsset ? `/api/assets/${selectedAsset.assetId}/content` : null;

@@ -202,8 +202,21 @@ async function markExamState(input: Pick<StructureInput, "ownerId" | "examId">, 
   await getExamRepository().update(input.ownerId, input.examId, exam.etag, { state });
 }
 
+async function markAutopilotFailed(input: StructureInput) {
+  "use step";
+  const revision = await getExamRevisionRepository().get(input.ownerId, input.examId, input.revisionId);
+  if (revision && ["extracting", "solving"].includes(revision.value.status)) {
+    await getExamRevisionRepository().update(input.ownerId, input.examId, input.revisionId, revision.etag, { status: "stale", blockingIssues: ["AUTOPILOT_FAILED"] });
+  }
+  const exam = await getExamRepository().getWithMeta(input.ownerId, input.examId);
+  if (exam?.exam.activeRevisionId === input.revisionId && ["extracting", "solving"].includes(exam.exam.state)) {
+    await getExamRepository().update(input.ownerId, input.examId, exam.etag, { state: "draft" });
+  }
+}
+
 export async function examAutopilotWorkflow(input: StructureInput) {
   "use workflow";
+  try {
   const pages = await loadPages(input);
   const outcomes: Array<{ provider: "gemini" | "deepseek"; model: string; output?: z.infer<typeof structureModelOutputSchema>; error?: string }> = [];
   for (const page of pages) {
@@ -224,4 +237,8 @@ export async function examAutopilotWorkflow(input: StructureInput) {
   const solved = await persistSolutions(solveInput, proposal, solvePages, outputs);
   await markExamState(input, "key_review");
   return { revisionId: input.revisionId, structureProposalId, structureIssues: persisted.blockingIssues, solutionProposalIds: solved.solutionProposalIds, blockingIssues: solved.blockingIssues };
+  } catch (error) {
+    try { await markAutopilotFailed(input); } catch { /* Preserve the original workflow error. */ }
+    throw error;
+  }
 }

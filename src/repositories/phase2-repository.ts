@@ -34,7 +34,7 @@ export class ExamRevisionRepository extends JsonAggregateRepository {
 
   async get(ownerId: string, examId: string, revisionId: string) { return this.read<ExamRevision>(this.path(ownerId, examId, revisionId), examRevisionSchema); }
 
-  async update(ownerId: string, examId: string, revisionId: string, expectedEtag: string, patch: Partial<Pick<ExamRevision, "status" | "proposals" | "activeStructureProposalId" | "answerKeyRevisionId" | "blockingIssues">>) {
+  async update(ownerId: string, examId: string, revisionId: string, expectedEtag: string, patch: Partial<Pick<ExamRevision, "status" | "workflowRunId" | "proposals" | "activeStructureProposalId" | "answerKeyRevisionId" | "blockingIssues">>) {
     const current = await this.get(ownerId, examId, revisionId);
     if (!current) throw new AppError("NOT_FOUND", "Revisión de examen no encontrada.", 404);
     if (current.etag !== expectedEtag) throw new AppError("ETAG_CONFLICT", "La revisión fue modificada por otro proceso.", 409);

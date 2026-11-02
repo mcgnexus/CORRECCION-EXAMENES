@@ -5,9 +5,9 @@ export type ExamState = z.infer<typeof examStateSchema>;
 
 const transitions: Record<ExamState, readonly ExamState[]> = {
   draft: ["extracting"],
-  extracting: ["structure_review"],
-  structure_review: ["solving"],
-  solving: ["key_review"],
+  extracting: ["structure_review", "draft"],
+  structure_review: ["solving", "extracting", "draft"],
+  solving: ["key_review", "extracting", "draft"],
   key_review: ["approved"],
   approved: [],
 };

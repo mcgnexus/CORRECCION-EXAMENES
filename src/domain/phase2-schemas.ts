@@ -81,6 +81,7 @@ export const examRevisionSchema = z.object({
   pagesManifestEtag: z.string().min(1),
   sourcePageIds: z.array(idSchema),
   status: z.enum(["extracting", "structure_review", "solving", "key_review", "approved", "stale"]),
+  workflowRunId: idSchema.optional(),
   language: z.string().min(2).max(20),
   proposals: z.array(idSchema),
   activeStructureProposalId: idSchema.optional(),
