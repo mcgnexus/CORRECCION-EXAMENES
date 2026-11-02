@@ -133,9 +133,10 @@ async function callOmr(page: PageInput, template: OmrTemplateRevision) {
   const headers: Record<string, string> = { "content-type": "application/json", "x-internal-service-secret": secret };
   if (process.env.VERCEL_AUTOMATION_BYPASS_SECRET) headers["x-vercel-protection-bypass"] = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
   const response = await fetch(`${origin}/api/omr`, { method: "POST", headers, body: JSON.stringify({ assetId: page.assetId, mode: "asset_bytes", imageBase64: page.imageBase64, preprocess: template.preprocess, template: { canvasWidth: template.canvasWidth, canvasHeight: template.canvasHeight, sourceAnchors: template.sourceAnchors, targetAnchors: template.targetAnchors, bubbles: template.bubbles, threshold: template.threshold, margin: template.margin, algorithmVersion: template.algorithmVersion } }), signal: AbortSignal.timeout(120_000) });
-  if (response.status === 429 || response.status >= 500) throw new AppError("OMR_SERVICE_RETRYABLE", `El servicio OMR respondió HTTP ${response.status}.`, 503, true);
-  if (!response.ok) throw new AppError("OMR_SERVICE_FAILED", `El servicio OMR respondió HTTP ${response.status}.`, 502);
-  return (await response.json() as { result: OmrResult }).result;
+  const responseText = await response.text();
+  if (response.status === 429 || response.status >= 500) throw new AppError("OMR_SERVICE_RETRYABLE", `El servicio OMR respondió HTTP ${response.status}: ${responseText.slice(0, 200)}`, 503, true);
+  if (!response.ok) throw new AppError("OMR_SERVICE_FAILED", `El servicio OMR respondió HTTP ${response.status}: ${responseText.slice(0, 200)}`, 502);
+  return (JSON.parse(responseText) as { result: OmrResult }).result;
 }
 
 async function processPage(input: ProcessBatchInput, page: PageInput, template: OmrTemplateRevision) {

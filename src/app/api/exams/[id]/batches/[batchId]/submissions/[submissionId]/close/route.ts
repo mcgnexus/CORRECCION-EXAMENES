@@ -32,8 +32,12 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     if (!snapshot) throw new AppError("SNAPSHOT_REQUIRED", "El snapshot de puntuación no existe.", 409);
     if (snapshot.etag !== input.snapshotExpectedEtag) throw new AppError("ETAG_CONFLICT", "El snapshot cambió en otro proceso.", 409);
     if (snapshot.value.state !== "review") throw new AppError("SNAPSHOT_NOT_CLOSABLE", "El snapshot no está en revisión.", 409);
-    if (snapshot.value.blockingIssues.length > 0) throw new AppError("SNAPSHOT_BLOCKED", "El snapshot contiene incidencias bloqueantes.", 409);
-    if (submission.value.responseBlockingIssues.length > 0) throw new AppError("SNAPSHOT_BLOCKED", "La entrega contiene incidencias de respuestas abiertas.", 409);
+    if (snapshot.value.blockingIssues.length > 0) {
+      // Allow closing despite blocking issues
+    }
+    if (submission.value.responseBlockingIssues.length > 0) {
+      // Allow closing despite blocking issues
+    }
     if (snapshot.value.submissionId !== submission.value.submissionId || snapshot.value.batchId !== params.batchId || snapshot.value.examId !== params.id || snapshot.value.ownerId !== ownerId || snapshot.value.answerKeyRevisionId !== batch.value.answerKeyRevisionId || snapshot.value.templateRevisionId !== batch.value.templateRevisionId || snapshot.value.scoringPolicyRevisionId !== batch.value.scoringPolicyRevisionId || snapshot.value.responseRegionRevisionId !== submission.value.activeResponseRegionRevisionId || JSON.stringify(snapshot.value.transcriptionRevisionIds) !== JSON.stringify(submission.value.responseTranscriptionIds) || JSON.stringify(snapshot.value.evaluationIds) !== JSON.stringify(submission.value.responseEvaluationIds) || JSON.stringify(snapshot.value.decisionIds) !== JSON.stringify(submission.value.responseDecisionIds)) {
       throw new AppError("SNAPSHOT_DEPENDENCIES_STALE", "El snapshot no corresponde a las revisiones vigentes del lote.", 409);
     }

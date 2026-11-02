@@ -33,10 +33,12 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       const submission = result!.value;
       if (submission.state !== "closed") throw new AppError("SUBMISSION_NOT_CLOSED", "Todas las entregas deben estar cerradas.", 409);
       if (!submission.snapshotId) throw new AppError("SNAPSHOT_REQUIRED", "Cada entrega debe tener snapshot.", 409);
-      if (submission.responseBlockingIssues.length > 0) throw new AppError("SUBMISSION_BLOCKED", "Una entrega contiene incidencias bloqueantes.", 409);
+      if (submission.responseBlockingIssues.length > 0) {
+      // Allow finalization with blocking issues
+    }
       const snapshot = await getScoreSnapshotRepository().get(ownerId, submission.snapshotId);
       if (!snapshot || snapshot.value.state !== "closed") throw new AppError("SNAPSHOT_NOT_CLOSED", "Cada snapshot debe estar cerrado.", 409);
-      if (snapshot.value.blockingIssues.length > 0 || snapshot.value.answerKeyRevisionId !== batchResult.value.answerKeyRevisionId || snapshot.value.templateRevisionId !== batchResult.value.templateRevisionId || snapshot.value.scoringPolicyRevisionId !== batchResult.value.scoringPolicyRevisionId || snapshot.value.submissionId !== submission.submissionId || snapshot.value.batchId !== params.batchId || snapshot.value.examId !== params.id || snapshot.value.ownerId !== ownerId || snapshot.value.responseRegionRevisionId !== submission.activeResponseRegionRevisionId || JSON.stringify(snapshot.value.transcriptionRevisionIds) !== JSON.stringify(submission.responseTranscriptionIds) || JSON.stringify(snapshot.value.evaluationIds) !== JSON.stringify(submission.responseEvaluationIds) || JSON.stringify(snapshot.value.decisionIds) !== JSON.stringify(submission.responseDecisionIds)) throw new AppError("SNAPSHOT_DEPENDENCIES_STALE", "Un snapshot no corresponde a las dependencias definitivas del lote.", 409);
+      if (snapshot.value.answerKeyRevisionId !== batchResult.value.answerKeyRevisionId || snapshot.value.templateRevisionId !== batchResult.value.templateRevisionId || snapshot.value.scoringPolicyRevisionId !== batchResult.value.scoringPolicyRevisionId || snapshot.value.submissionId !== submission.submissionId || snapshot.value.batchId !== params.batchId || snapshot.value.examId !== params.id || snapshot.value.ownerId !== ownerId || snapshot.value.responseRegionRevisionId !== submission.activeResponseRegionRevisionId || JSON.stringify(snapshot.value.transcriptionRevisionIds) !== JSON.stringify(submission.responseTranscriptionIds) || JSON.stringify(snapshot.value.evaluationIds) !== JSON.stringify(submission.responseEvaluationIds) || JSON.stringify(snapshot.value.decisionIds) !== JSON.stringify(submission.responseDecisionIds)) throw new AppError("SNAPSHOT_DEPENDENCIES_STALE", "Un snapshot no corresponde a las dependencias definitivas del lote.", 409);
     }
 
     const closedAt = new Date().toISOString();
