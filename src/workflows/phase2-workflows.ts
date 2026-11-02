@@ -5,6 +5,7 @@ import { reviewWithDeepSeekJson } from "@/providers/deepseek";
 import { ProviderError } from "@/providers/contracts";
 import { solutionModelOutputSchema, structureModelOutputSchema, type StructureProposal } from "@/domain/phase2-schemas";
 import { extractAndRenderPdf } from "@/lib/pdf";
+import { autopilotProgressPath } from "@/lib/autopilot-recovery";
 import { getAnswerKeyRepository, getAssetRepository, getDocumentPagesRepository, getExamRepository, getExamRevisionRepository, getProviderRunRepository, getSolutionProposalRepository, getStructureProposalRepository } from "@/repositories";
 import { getBlobStore } from "@/repositories/blob-store";
 
@@ -214,14 +215,30 @@ async function markAutopilotFailed(input: StructureInput) {
   }
 }
 
+async function touchAutopilotProgress(input: StructureInput, phase: string) {
+  "use step";
+  try {
+    const blobs = getBlobStore();
+    const path = autopilotProgressPath(input.ownerId, input.examId, input.revisionId);
+    const current = await blobs.get(path);
+    const body = new TextEncoder().encode(JSON.stringify({ schemaVersion: 1, updatedAt: new Date().toISOString(), phase }));
+    await blobs.put(path, body, "application/json", current ? { ifMatch: current.etag } : { ifNoneMatch: true });
+  } catch {
+    // El marcador de progreso es mejor esfuerzo; nunca debe interrumpir el workflow.
+  }
+}
+
 export async function examAutopilotWorkflow(input: StructureInput) {
   "use workflow";
   try {
   const pages = await loadPages(input);
+  await touchAutopilotProgress(input, "pages");
   const outcomes: Array<{ provider: "gemini" | "deepseek"; model: string; output?: z.infer<typeof structureModelOutputSchema>; error?: string }> = [];
   for (const page of pages) {
     try { outcomes.push({ provider: "gemini", model: process.env.GEMINI_SOLVE_MODEL ?? "unknown", output: await runGeminiStructure(input, page) }); } catch (error) { outcomes.push({ provider: "gemini", model: process.env.GEMINI_SOLVE_MODEL ?? "unknown", error: error instanceof ProviderError ? error.code : "GEMINI_STRUCTURE_FAILED" }); }
+    await touchAutopilotProgress(input, "structure");
     try { outcomes.push({ provider: "deepseek", model: process.env.DEEPSEEK_REVIEW_MODEL ?? "unknown", output: await runDeepSeekStructure(input, page) }); } catch (error) { outcomes.push({ provider: "deepseek", model: process.env.DEEPSEEK_REVIEW_MODEL ?? "unknown", error: error instanceof ProviderError ? error.code : "DEEPSEEK_STRUCTURE_FAILED" }); }
+    await touchAutopilotProgress(input, "structure");
   }
   const persisted = await persistStructure(input, pages, outcomes);
   const structureProposalId = await selectBestStructure(input);
@@ -232,7 +249,9 @@ export async function examAutopilotWorkflow(input: StructureInput) {
   for (const question of proposal.questions) {
     const page = solvePages.find((candidate) => question.pageIds.includes(candidate.pageId)) ?? solvePages[0];
     try { outputs.push({ questionId: question.questionId, provider: "gemini", model: process.env.GEMINI_SOLVE_MODEL ?? "unknown", output: await solveQuestionWithGemini(question, page, true) }); } catch (error) { outputs.push({ questionId: question.questionId, provider: "gemini", model: process.env.GEMINI_SOLVE_MODEL ?? "unknown", error: error instanceof ProviderError ? error.code : "GEMINI_SOLUTION_FAILED" }); }
+    await touchAutopilotProgress(input, "solving");
     try { outputs.push({ questionId: question.questionId, provider: "deepseek", model: process.env.DEEPSEEK_REVIEW_MODEL ?? "unknown", output: await solveQuestionWithDeepSeek(question, page) }); } catch (error) { outputs.push({ questionId: question.questionId, provider: "deepseek", model: process.env.DEEPSEEK_REVIEW_MODEL ?? "unknown", error: error instanceof ProviderError ? error.code : "DEEPSEEK_SOLUTION_FAILED" }); }
+    await touchAutopilotProgress(input, "solving");
   }
   const solved = await persistSolutions(solveInput, proposal, solvePages, outputs);
   await markExamState(input, "key_review");

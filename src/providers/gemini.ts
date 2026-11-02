@@ -2,6 +2,7 @@ import { z } from "zod";
 import { providerProposalSchema, ProviderError, parseProviderJson, type ProviderCapabilities, type ProviderProposal, withProviderRetry } from "./contracts";
 
 const endpoint = "https://generativelanguage.googleapis.com/v1beta/models";
+const PROVIDER_TIMEOUT_MS = 75_000;
 
 function modelName() {
   const model = process.env.GEMINI_SOLVE_MODEL;
@@ -12,17 +13,24 @@ function modelName() {
 async function request(model: string, body: unknown) {
   const key = process.env.GEMINI_API_KEY;
   if (!key) throw new ProviderError("PROVIDER_NOT_CONFIGURED", "GEMINI_API_KEY no está configurada.", false);
-  const response = await fetch(`${endpoint}/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!response.ok) {
-    const retryable = response.status === 429 || response.status >= 500;
-    const retryAfter = Number(response.headers.get("retry-after"));
-    throw new ProviderError("GEMINI_REQUEST_FAILED", `Gemini respondió HTTP ${response.status}.`, retryable, response.status, Number.isFinite(retryAfter) ? retryAfter * 1_000 : undefined);
+  try {
+    const response = await fetch(`${endpoint}/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(key)}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(PROVIDER_TIMEOUT_MS),
+    });
+    if (!response.ok) {
+      const retryable = response.status === 429 || response.status >= 500;
+      const retryAfter = Number(response.headers.get("retry-after"));
+      throw new ProviderError("GEMINI_REQUEST_FAILED", `Gemini respondió HTTP ${response.status}.`, retryable, response.status, Number.isFinite(retryAfter) ? retryAfter * 1_000 : undefined);
+    }
+    return response.json() as Promise<Record<string, unknown>>;
+  } catch (error) {
+    if (error instanceof ProviderError) throw error;
+    if (error instanceof Error && (error.name === "TimeoutError" || error.name === "AbortError")) throw new ProviderError("GEMINI_TIMEOUT", "Gemini tardó demasiado en responder.", true, 504);
+    throw error;
   }
-  return response.json() as Promise<Record<string, unknown>>;
 }
 
 function extractText(payload: Record<string, unknown>) {

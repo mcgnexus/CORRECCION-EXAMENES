@@ -2,10 +2,22 @@ import { getRun, start } from "workflow/api";
 import { assertSameOrigin, requireOwner } from "@/lib/auth";
 import { AppError, errorResponse } from "@/lib/errors";
 import { getDocumentPagesRepository, getExamRepository, getExamRevisionRepository, getIdempotencyRepository } from "@/repositories";
+import { getBlobStore } from "@/repositories/blob-store";
 import { examAutopilotWorkflow } from "@/workflows/phase2-workflows";
+import { autopilotProgressPath, isAutopilotStuck } from "@/lib/autopilot-recovery";
 
 const STARTUP_GRACE_MS = 30_000;
 const ACTIVE_STATUSES = ["extracting", "solving"] as const;
+
+async function readAutopilotProgressUpdatedAt(ownerId: string, examId: string, revisionId: string) {
+  try {
+    const progress = await getBlobStore().get(autopilotProgressPath(ownerId, examId, revisionId));
+    const parsed = progress ? JSON.parse(new TextDecoder().decode(progress.body)) as { updatedAt?: unknown } : null;
+    return parsed && typeof parsed.updatedAt === "string" ? parsed.updatedAt : null;
+  } catch {
+    return null;
+  }
+}
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   const requestId = crypto.randomUUID();
@@ -30,7 +42,10 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
           try { status = await getRun(current.value.workflowRunId).status; }
           catch { throw new AppError("AUTOPILOT_STATUS_UNAVAILABLE", "No se pudo comprobar la ejecución actual. Reintenta en unos instantes.", 503, true); }
           if (["queued", "running"].includes(status)) {
-            return Response.json({ data: { revisionId: current.value.examRevisionId, runId: current.value.workflowRunId }, replayed: true, requestId }, { status: 202, headers: { "x-request-id": requestId } });
+            const progressUpdatedAt = await readAutopilotProgressUpdatedAt(ownerId, examId, current.value.examRevisionId);
+            if (!isAutopilotStuck([current.value.updatedAt, progressUpdatedAt])) {
+              return Response.json({ data: { revisionId: current.value.examRevisionId, runId: current.value.workflowRunId }, replayed: true, requestId }, { status: 202, headers: { "x-request-id": requestId } });
+            }
           }
         } else if (Date.now() - Date.parse(current.value.createdAt) < STARTUP_GRACE_MS) {
           throw new AppError("AUTOPILOT_STARTING", "La ejecución está arrancando. Reintenta en unos instantes.", 503, true);
