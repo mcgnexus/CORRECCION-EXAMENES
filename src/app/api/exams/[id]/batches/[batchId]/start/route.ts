@@ -30,7 +30,6 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const input = bodySchema.parse(await request.json());
     const batch = await getBatchRepository().get(ownerId, params.id, params.batchId);
     if (!batch) throw new AppError("NOT_FOUND", "Lote no encontrado.", 404);
-    if (batch.etag !== input.expectedEtag) throw new AppError("ETAG_CONFLICT", "El lote cambió en otro proceso.", 409, true);
     if (["closed", "cancelled"].includes(batch.value.state)) throw new AppError("BATCH_NOT_PROCESSABLE", "El lote ya no admite procesamiento.", 409);
     if (batch.value.submissionIds.length === 0) throw new AppError("BATCH_EMPTY", "No se puede procesar un lote vacío.", 409);
     const concurrency = configuredConcurrency(input.concurrency);

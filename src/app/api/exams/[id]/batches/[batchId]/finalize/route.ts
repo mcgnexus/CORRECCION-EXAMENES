@@ -3,7 +3,7 @@ import { assertSameOrigin, requireOwner } from "@/lib/auth";
 import { AppError, errorResponse } from "@/lib/errors";
 import { getAnswerKeyRepository, getAuditRepository, getBatchRepository, getOmrTemplateRepository, getScoreSnapshotRepository, getSubmissionRepository } from "@/repositories";
 
-const bodySchema = z.object({ expectedEtag: z.string().min(1) });
+const bodySchema = z.object({ expectedEtag: z.string().min(1).optional() });
 
 export async function POST(request: Request, context: { params: Promise<{ id: string; batchId: string }> }) {
   const requestId = crypto.randomUUID();
@@ -11,10 +11,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     assertSameOrigin(request);
     const { ownerId } = await requireOwner();
     const params = await context.params;
-    const { expectedEtag } = bodySchema.parse(await request.json());
+    const body = bodySchema.parse(await request.json().catch(() => ({})));
     const batchResult = await getBatchRepository().get(ownerId, params.id, params.batchId);
     if (!batchResult) throw new AppError("NOT_FOUND", "Lote no encontrado.", 404);
-    if (batchResult.etag !== expectedEtag) throw new AppError("ETAG_CONFLICT", "El lote cambió en otro proceso.", 409, true);
     if (batchResult.value.state === "closed") throw new AppError("BATCH_ALREADY_CLOSED", "El lote ya está cerrado.", 409);
     if (batchResult.value.state === "cancelled") throw new AppError("BATCH_CANCELLED", "El lote está cancelado.", 409);
     if (batchResult.value.submissionIds.length === 0) throw new AppError("BATCH_EMPTY", "No se puede cerrar un lote vacío.", 409);
@@ -41,7 +40,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     }
 
     const closedAt = new Date().toISOString();
-    const updated = await getBatchRepository().update(ownerId, params.id, params.batchId, expectedEtag, { state: "closed", closedAt, closedBy: ownerId });
+    const updated = await getBatchRepository().update(ownerId, params.id, params.batchId, batchResult.etag, { state: "closed", closedAt, closedBy: ownerId });
     await getAuditRepository().append({ ownerId, actorId: ownerId, type: "batch.finalized", aggregateType: "batch", aggregateId: params.batchId, payload: { examId: params.id, submissionIds: batchResult.value.submissionIds, answerKeyRevisionId: batchResult.value.answerKeyRevisionId, templateRevisionId: batchResult.value.templateRevisionId, scoringPolicyRevisionId: batchResult.value.scoringPolicyRevisionId } });
     return Response.json({ data: updated.value, requestId }, { headers: { "x-request-id": requestId, etag: updated.etag } });
   } catch (error) {
