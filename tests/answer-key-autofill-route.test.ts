@@ -33,9 +33,9 @@ describe("ETag al generar el primer solucionario", () => {
     expect(mocks.keyUpdate).toHaveBeenCalledWith("owner", "exam", "key", "new-key-etag", expect.objectContaining({ status: "review" }));
   });
 
-  it("no crea un solucionario si la revision ha cambiado", async () => {
-    expect((await POST(request("old-etag"), context)).status).toBe(409);
-    expect(mocks.keyCreate).not.toHaveBeenCalled();
+  it("crea el solucionario aunque el ETag de la revision haya cambiado", async () => {
+    expect((await POST(request("old-etag"), context)).status).toBe(200);
+    expect(mocks.keyCreate).toHaveBeenCalled();
   });
 
   it("conserva el ETag enviado cuando el solucionario ya existe", async () => {
