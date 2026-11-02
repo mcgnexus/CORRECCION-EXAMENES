@@ -48,20 +48,53 @@ export const structureProposalSchema = z.object({
   createdAt: isoDateSchema,
 });
 
+const modelOptionSchema = z.union([
+  z.string(),
+  z.object({ label: z.union([z.string(), z.number()]).optional(), text: z.string().optional(), value: z.string().optional(), content: z.string().optional() }).passthrough(),
+]).catch("");
+
+const modelFigureBoxSchema = z.object({
+  x: z.number().min(0).max(1),
+  y: z.number().min(0).max(1),
+  width: z.number().gt(0).max(1),
+  height: z.number().gt(0).max(1),
+});
+
 export const structureModelOutputSchema = z.object({
   questions: z.array(z.object({
-    number: z.number().int().positive(),
-    label: z.string().min(1),
-    type: questionTypeSchema,
-    text: z.string(),
-    options: z.array(z.object({ label: z.string().min(1), text: z.string() })),
-    pageNumbers: z.array(z.number().int().positive()),
-    figureBoxes: z.array(z.object({ x: z.number().min(0).max(1), y: z.number().min(0).max(1), width: z.number().gt(0).max(1), height: z.number().gt(0).max(1) })),
-    flags: z.array(z.string()),
-  })),
-  doubts: z.array(z.string()),
-  flags: z.array(z.string()),
-});
+    number: z.coerce.number().int().positive().catch(0),
+    label: z.union([z.string(), z.number()]).optional(),
+    type: z.string().optional(),
+    text: z.string().catch(""),
+    options: z.array(modelOptionSchema).catch([]),
+    pageNumbers: z.array(z.coerce.number().int().positive()).catch([]),
+    figureBoxes: z.array(modelFigureBoxSchema).catch([]),
+    flags: z.array(z.string()).catch([]),
+  }).passthrough()).catch([]),
+  doubts: z.array(z.string()).catch([]),
+  flags: z.array(z.string()).catch([]),
+}).transform((result) => ({
+  ...result,
+  questions: result.questions.map((question, index) => {
+    const number = question.number || index + 1;
+    const options = question.options.flatMap((option, optionIndex) => {
+      if (typeof option === "string") return option.trim() ? [{ label: String.fromCharCode(65 + optionIndex), text: option }] : [];
+      const text = option.text ?? option.value ?? option.content ?? "";
+      return text.trim() ? [{ label: String(option.label ?? String.fromCharCode(65 + optionIndex)), text }] : [];
+    });
+    const parsedType = questionTypeSchema.safeParse(question.type);
+    return {
+      number,
+      label: String(question.label ?? number),
+      type: parsedType.success ? parsedType.data : options.length ? "single_choice" as const : "short_text" as const,
+      text: question.text,
+      options,
+      pageNumbers: question.pageNumbers,
+      figureBoxes: question.figureBoxes,
+      flags: question.flags,
+    };
+  }),
+}));
 
 export const solutionModelOutputSchema = z.object({
   answer: z.unknown(),

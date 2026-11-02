@@ -17,7 +17,7 @@ describe("contratos y resiliencia de Fase 2", () => {
   it("exige la forma estructurada de una propuesta", () => {
     const result = structureModelOutputSchema.parse({ questions: [], doubts: [], flags: [] });
     expect(result.questions).toHaveLength(0);
-    expect(() => structureModelOutputSchema.parse({ questions: [{ number: 1 }] })).toThrow();
+    expect(structureModelOutputSchema.parse({ questions: [{ number: 1 }] }).questions[0]).toMatchObject({ number: 1, label: "1", type: "short_text", text: "", options: [] });
   });
 
   it("no exige IDs internos al modelo para las opciones", () => {
@@ -27,6 +27,21 @@ describe("contratos y resiliencia de Fase 2", () => {
       flags: [],
     });
     expect(result.questions[0].options[0]).toEqual({ label: "A", text: "4" });
+  });
+
+  it("normaliza preguntas con opciones simples y listas auxiliares omitidas", () => {
+    const result = structureModelOutputSchema.parse({
+      questions: [{ number: "2", text: "¿Cuál es la capital?", options: ["Madrid", { label: "B", value: "Roma" }] }],
+    });
+    expect(result.questions[0]).toMatchObject({
+      number: 2,
+      label: "2",
+      type: "single_choice",
+      options: [{ label: "A", text: "Madrid" }, { label: "B", text: "Roma" }],
+      pageNumbers: [],
+      figureBoxes: [],
+      flags: [],
+    });
   });
 
   it("conserva bloqueos de aprobación en el answer key", () => {

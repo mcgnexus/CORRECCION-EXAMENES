@@ -39,11 +39,11 @@ export async function solveWithGemini(prompt: string, options: { parts?: unknown
   return { answer: result.answer, justification: result.justification ?? "", doubts: result.doubts ?? [], sourceEvidence: result.sourceEvidence ?? [], reviewScope: result.reviewScope };
 }
 
-export async function generateGeminiJson<T>(prompt: string, schema: z.ZodType<T>, options: { parts?: unknown[]; useSearch?: boolean; model?: "solve" | "transcribe" } = {}): Promise<T> {
+export async function generateGeminiJson<S extends z.ZodTypeAny>(prompt: string, schema: S, options: { parts?: unknown[]; useSearch?: boolean; model?: "solve" | "transcribe" } = {}): Promise<z.output<S>> {
   return (await generateGeminiJsonWithMetadata(prompt, schema, options)).value;
 }
 
-export async function generateGeminiJsonWithMetadata<T>(prompt: string, schema: z.ZodType<T>, options: { parts?: unknown[]; useSearch?: boolean; model?: "solve" | "transcribe" } = {}): Promise<{ value: T; usage?: { inputTokens?: number; outputTokens?: number } }> {
+export async function generateGeminiJsonWithMetadata<S extends z.ZodTypeAny>(prompt: string, schema: S, options: { parts?: unknown[]; useSearch?: boolean; model?: "solve" | "transcribe" } = {}): Promise<{ value: z.output<S>; usage?: { inputTokens?: number; outputTokens?: number } }> {
   const model = options.model === "transcribe" ? process.env.GEMINI_TRANSCRIBE_MODEL : modelName();
   if (!model) throw new ProviderError("MODEL_NOT_CONFIGURED", "El modelo Gemini no está configurado.", false);
   const body: Record<string, unknown> = {

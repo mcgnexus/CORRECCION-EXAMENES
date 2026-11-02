@@ -12,11 +12,11 @@ export async function reviewWithDeepSeek(prompt: string, options: { messages?: u
   return { answer: result.answer, justification: result.justification ?? "", doubts: result.doubts ?? [], sourceEvidence: result.sourceEvidence ?? [], reviewScope: result.reviewScope };
 }
 
-export async function reviewWithDeepSeekJson<T>(prompt: string, schema: z.ZodType<T>, options: { messages?: unknown[] } = {}): Promise<T> {
+export async function reviewWithDeepSeekJson<S extends z.ZodTypeAny>(prompt: string, schema: S, options: { messages?: unknown[] } = {}): Promise<z.output<S>> {
   return (await reviewWithDeepSeekJsonWithMetadata(prompt, schema, options)).value;
 }
 
-export async function reviewWithDeepSeekJsonWithMetadata<T>(prompt: string, schema: z.ZodType<T>, options: { messages?: unknown[] } = {}): Promise<{ value: T; usage?: { inputTokens?: number; outputTokens?: number } }> {
+export async function reviewWithDeepSeekJsonWithMetadata<S extends z.ZodTypeAny>(prompt: string, schema: S, options: { messages?: unknown[] } = {}): Promise<{ value: z.output<S>; usage?: { inputTokens?: number; outputTokens?: number } }> {
   const key = process.env.DEEPSEEK_API_KEY;
   if (!key) throw new ProviderError("PROVIDER_NOT_CONFIGURED", "DEEPSEEK_API_KEY no está configurada.", false);
   const response = await withProviderRetry(() => fetch("https://api.deepseek.com/chat/completions", {

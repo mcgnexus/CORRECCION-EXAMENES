@@ -53,7 +53,7 @@ export async function withProviderRetry<T>(operation: (attempt: number) => Promi
   throw new ProviderError("RETRY_EXHAUSTED", "Se agotaron los reintentos del proveedor.", false);
 }
 
-export function parseProviderJson<T>(value: unknown, schema: z.ZodType<T>): T {
+export function parseProviderJson<S extends z.ZodTypeAny>(value: unknown, schema: S): z.output<S> {
   const parsed = schema.safeParse(value);
   if (!parsed.success) throw new ProviderError("INVALID_PROVIDER_OUTPUT", "La salida del proveedor no cumple el esquema.", false);
   return parsed.data;

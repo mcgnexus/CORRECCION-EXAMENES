@@ -42,15 +42,15 @@ export async function loadPages(input: StructureInput): Promise<PageInput[]> {
   return pages;
 }
 
-export async function runGeminiStructure(input: StructureInput, pages: PageInput) {
+export async function runGeminiStructure(input: StructureInput, pages: PageInput): Promise<z.infer<typeof structureModelOutputSchema>> {
   "use step";
-  return generateGeminiJson(promptForStructure([pages]), structureModelOutputSchema, { model: "solve", parts: [{ text: promptForStructure([pages]) }, { inlineData: { mimeType: pages.mimeType, data: pages.imageBase64 } }] });
+  return generateGeminiJson<typeof structureModelOutputSchema>(promptForStructure([pages]), structureModelOutputSchema, { model: "solve", parts: [{ text: promptForStructure([pages]) }, { inlineData: { mimeType: pages.mimeType, data: pages.imageBase64 } }] });
 }
 
-export async function runDeepSeekStructure(input: StructureInput, pages: PageInput) {
+export async function runDeepSeekStructure(input: StructureInput, pages: PageInput): Promise<z.infer<typeof structureModelOutputSchema>> {
   "use step";
   const prompt = promptForStructure([pages]);
-  return reviewWithDeepSeekJson(prompt, structureModelOutputSchema, { messages: [{ role: "user", content: [{ type: "text", text: prompt }, { type: "image_url", image_url: { url: `data:${pages.mimeType};base64,${pages.imageBase64}`, detail: "original" } }] }] });
+  return reviewWithDeepSeekJson<typeof structureModelOutputSchema>(prompt, structureModelOutputSchema, { messages: [{ role: "user", content: [{ type: "text", text: prompt }, { type: "image_url", image_url: { url: `data:${pages.mimeType};base64,${pages.imageBase64}`, detail: "original" } }] }] });
 }
 
 export async function persistStructure(input: StructureInput, pages: PageInput[], outcomes: Array<{ provider: "gemini" | "deepseek"; model: string; output?: z.infer<typeof structureModelOutputSchema>; error?: string }>) {
