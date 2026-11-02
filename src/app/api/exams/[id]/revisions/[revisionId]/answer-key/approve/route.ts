@@ -25,7 +25,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         throw new AppError("SECTION_REQUIRED", `La pregunta ${question.questionId} necesita sectionId.`, 409);
       }
     }
-    const approved = await getAnswerKeyRepository().update(ownerId, params.id, current.value.answerKeyRevisionId, body.expectedEtag, { status: "approved", approvedBy: ownerId, approvedAt: new Date().toISOString() });
+    const approved = await getAnswerKeyRepository().update(ownerId, params.id, current.value.answerKeyRevisionId, current.etag, { status: "approved", approvedBy: ownerId, approvedAt: new Date().toISOString() });
     const exam = await getExamRepository().getWithMeta(ownerId, params.id);
     if (exam) await getExamRepository().update(ownerId, params.id, exam.etag, { state: "approved" }).catch(() => undefined);
     return Response.json({ data: approved.answerKey, requestId }, { headers: { "x-request-id": requestId, etag: approved.etag } });
