@@ -54,6 +54,14 @@ export class SolutionProposalRepository extends JsonAggregateRepository {
   private path(ownerId: string, examRevisionId: string, proposalId: string) { return `owners/${ownerId}/revisions/${examRevisionId}/phase2/solutions/${proposalId}.json`; }
   async create(ownerId: string, proposal: SolutionProposal) { const stored = await this.write(this.path(ownerId, proposal.examRevisionId, proposal.solutionProposalId), proposal); return { proposal, etag: stored.etag }; }
   async get(ownerId: string, examRevisionId: string, proposalId: string) { return this.read<SolutionProposal>(this.path(ownerId, examRevisionId, proposalId), solutionProposalSchema); }
+  async list(ownerId: string, examRevisionId: string) {
+    const proposals: Array<{ value: SolutionProposal; etag: string }> = [];
+    for (const path of await this.blobs.list(`owners/${ownerId}/revisions/${examRevisionId}/phase2/solutions/`)) {
+      const item = await this.read<SolutionProposal>(path, solutionProposalSchema);
+      if (item) proposals.push(item);
+    }
+    return proposals;
+  }
 }
 
 export class AnswerKeyRepository extends JsonAggregateRepository {

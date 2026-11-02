@@ -4,7 +4,7 @@ import { upload } from "@vercel/blob/client";
 import { useParams } from "next/navigation";
 import { ChangeEvent, useCallback, useEffect, useMemo, useState } from "react";
 
-type Exam = { examId: string; ownerId: string; title: string; subject: string; state: string };
+type Exam = { examId: string; ownerId: string; title: string; subject: string; state: string; activeRevisionId?: string };
 type Asset = { assetId: string; examId?: string; kind: string; state: string; mimeType: string; sizeBytes: number; pageCount?: number; pageNumber?: number };
 type Page = { pageId: string; examId: string; ownerId: string; sourceAssetId: string; pageNumber: number; order: number; rotation: 0 | 90 | 180 | 270; crop?: { x: number; y: number; width: number; height: number }; groupId?: string };
 type Group = { groupId: string; examId: string; ownerId: string; label: string; pageIds: string[]; studentLabel?: string };
@@ -23,7 +23,7 @@ export default function ExamDetailPage() {
   const [groupLabel, setGroupLabel] = useState("Entrega");
   const [progress, setProgress] = useState<Record<string, number>>({});
   const [message, setMessage] = useState<string | null>(null);
-  const [extracting, setExtracting] = useState(false);
+  const [autopilot, setAutopilot] = useState<{ runId: string; revisionId: string; status: string } | null>(null);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -39,6 +39,19 @@ export default function ExamDetailPage() {
   }, [examId]);
 
   useEffect(() => { load().catch((error) => setMessage(error instanceof Error ? error.message : "No se pudo cargar el examen.")).finally(() => setLoading(false)); }, [load]);
+
+  useEffect(() => {
+    if (!autopilot || !["queued", "running"].includes(autopilot.status)) return;
+    const timer = window.setInterval(async () => {
+      const response = await fetch(`/api/phase0/workflow/${autopilot.runId}`);
+      const payload = await response.json() as { data?: { status?: string; output?: { revisionId?: string } }; error?: { message?: string } };
+      const status = payload.data?.status ?? "failed";
+      setAutopilot((current) => current ? { ...current, status } : current);
+      if (status === "completed") window.location.href = `/exams/${examId}/revisions/${payload.data?.output?.revisionId ?? autopilot.revisionId}/answer-key`;
+      if (status === "failed") setMessage(payload.error?.message ?? "La IA no pudo leer y resolver el examen.");
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [autopilot, examId]);
 
   const selectedPage = manifest.pages.find((page) => page.pageId === selectedPageId) ?? null;
   const selectedAsset = selectedPage ? assets.find((asset) => asset.assetId === selectedPage.sourceAssetId) : null;
@@ -95,14 +108,13 @@ export default function ExamDetailPage() {
     setSelectedGroupIds([]);
   }
 
-  async function extractStructure() {
-    setExtracting(true);
+  async function readAndSolve() {
     setMessage(null);
-    const response = await fetch(`/api/exams/${examId}/extract`, { method: "POST", headers: { "content-type": "application/json", origin: window.location.origin, "idempotency-key": crypto.randomUUID() }, body: JSON.stringify({ expectedPagesEtag: manifest.etag, language: "es" }) });
-    const payload = await response.json() as { data?: { revisionId?: string }; error?: { message?: string } };
-    setExtracting(false);
-    if (!response.ok || !payload.data?.revisionId) { setMessage(payload.error?.message ?? "No se pudo iniciar la extracción."); return; }
-    window.location.href = `/exams/${examId}/revisions/${payload.data.revisionId}`;
+    const response = await fetch(`/api/exams/${examId}/autopilot`, { method: "POST", headers: { "content-type": "application/json", origin: window.location.origin, "idempotency-key": crypto.randomUUID() }, body: JSON.stringify({ language: "es" }) });
+    const payload = await response.json() as { data?: { runId?: string; revisionId?: string }; error?: { message?: string } };
+    if (!response.ok || !payload.data?.runId || !payload.data.revisionId) { setMessage(payload.error?.message ?? "No se pudo iniciar la lectura del examen."); return; }
+    setAutopilot({ runId: payload.data.runId, revisionId: payload.data.revisionId, status: "running" });
+    setMessage("La IA está leyendo y resolviendo el examen. Te redirigiremos al solucionario al terminar.");
   }
 
   const previewUrl = selectedAsset ? `/api/assets/${selectedAsset.assetId}/content` : null;
@@ -114,7 +126,8 @@ export default function ExamDetailPage() {
         <p className="intro">{exam.subject}. Los originales permanecen privados; las transformaciones se guardan como revisión del manifiesto.</p>
         <div className="actions">
           <a className="button secondary" href={`/exams/${examId}/omr-template`}>Calibrar plantilla OMR</a>
-          <button className="button" type="button" disabled={extracting || manifest.pages.length === 0} onClick={extractStructure}>{extracting ? "Iniciando extracción..." : "Extraer estructura del examen"}</button>
+          <button className="button" type="button" disabled={manifest.pages.length === 0 || ["queued", "running"].includes(autopilot?.status ?? "")} onClick={readAndSolve}>{["queued", "running"].includes(autopilot?.status ?? "") ? "La IA está leyendo y resolviendo..." : "Leer y resolver con IA"}</button>
+          {exam.activeRevisionId ? <a className="button secondary" href={`/exams/${examId}/revisions/${exam.activeRevisionId}/answer-key`}>Ver solucionario</a> : null}
         </div>
         {message ? <p className="notice" role="status">{message}</p> : null}
         <div className="detail-grid">

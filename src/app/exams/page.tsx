@@ -36,7 +36,7 @@ export default function ExamsPage() {
       <header className="topbar"><a className="eyebrow" href="/">Corrector de exámenes</a><span className="status">Área del docente</span></header>
       <section>
         <h1>Preparar un examen antes de corregirlo.</h1>
-        <p className="intro">Crea el agregado del examen. La extracción, el solucionario y la subida de documentos solo se habilitan cuando sus capacidades técnicas estén verificadas.</p>
+        <p className="intro">Crea el examen y ábrelo para subir sus páginas. La IA leerá el examen, propondrá la resolución y, tras tu aprobación, esa resolución se usará para corregir los exámenes de los alumnos.</p>
         <form className="form" onSubmit={create}>
           <label className="label">Título<input className="input" value={title} onChange={(event) => setTitle(event.target.value)} required /></label>
           <label className="label">Asignatura<input className="input" value={subject} onChange={(event) => setSubject(event.target.value)} required /></label>

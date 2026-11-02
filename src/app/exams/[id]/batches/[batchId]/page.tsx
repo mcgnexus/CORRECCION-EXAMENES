@@ -1,7 +1,8 @@
 "use client";
 
+import { upload } from "@vercel/blob/client";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { ChangeEvent, useCallback, useEffect, useState } from "react";
 
 type Submission = { submissionId: string; state: string; pageIds: string[]; assetIds: string[]; suggestedIdentity?: string; identityConfidence?: number; confirmedIdentity?: string; readingIds: string[]; snapshotId?: string };
 type ReadingRow = { questionId: string; status: string; selectedOptionIds: string[]; candidateOptionIds: string[]; requiresHumanReview: boolean };
@@ -44,6 +45,8 @@ export default function BatchPage() {
   const [exportJobEtag, setExportJobEtag] = useState("");
   const [batchJob, setBatchJob] = useState<BatchJob | null>(null);
   const [batchJobEtag, setBatchJobEtag] = useState("");
+  const [ownerId, setOwnerId] = useState("");
+  const [uploadingStudents, setUploadingStudents] = useState(false);
 
   const load = useCallback(async () => {
     const response = await fetch(base);
@@ -53,7 +56,34 @@ export default function BatchPage() {
     const batchResponse = await fetch(`/api/exams/${params.id}/batches/${params.batchId}`);
     const batchPayload = await batchResponse.json() as { data?: Batch; error?: { message?: string } };
     if (batchResponse.ok && batchPayload.data) { setBatch(batchPayload.data); setBatchEtag(batchResponse.headers.get("etag") ?? ""); }
+    const examResponse = await fetch(`/api/exams/${params.id}`);
+    const examPayload = await examResponse.json() as { data?: { ownerId?: string } };
+    if (examResponse.ok && examPayload.data?.ownerId) setOwnerId(examPayload.data.ownerId);
   }, [base, params.batchId, params.id]);
+
+  async function uploadStudentExams(event: ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files ?? []);
+    if (!files.length || !ownerId) return;
+    setUploadingStudents(true);
+    setMessage(null);
+    for (const file of files) {
+      const assetId = crypto.randomUUID();
+      const pathname = `owners/${ownerId}/exams/${params.id}/assets/${assetId}/original`;
+      try {
+        const uploaded = await upload(pathname, file, { access: "private", contentType: file.type, handleUploadUrl: `/api/exams/${params.id}/assets/authorize` });
+        const completion = await fetch(`/api/exams/${params.id}/assets/complete`, { method: "POST", headers: { "content-type": "application/json", origin: window.location.origin }, body: JSON.stringify({ assetId, pathname: uploaded.pathname }) });
+        if (!completion.ok) throw new Error("La subida terminó, pero no pudo validarse el archivo.");
+        const submission = await fetch(base, { method: "POST", headers: { "content-type": "application/json", origin: window.location.origin }, body: JSON.stringify({ assetIds: [assetId] }) });
+        const submissionPayload = await submission.json() as { error?: { message?: string } };
+        if (!submission.ok) throw new Error(submissionPayload.error?.message ?? "No se pudo registrar la entrega.");
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : `No se pudo subir ${file.name}.`);
+      }
+    }
+    setUploadingStudents(false);
+    await load();
+    event.target.value = "";
+  }
 
   useEffect(() => { load().catch((error) => setMessage(error instanceof Error ? error.message : "Error de carga.")); }, [load]);
 
@@ -306,6 +336,8 @@ export default function BatchPage() {
         <div className="detail-grid">
           <div className="panel">
             <h2>Entregas</h2>
+            <label className="label">Subir exámenes de alumnos (PDF o imagen)<input className="input" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" multiple disabled={uploadingStudents} onChange={uploadStudentExams} /></label>
+            {uploadingStudents ? <p className="intro">Subiendo y registrando entregas...</p> : null}
             <div className="page-list">{submissions.map((submission) => <div className={`page-row ${selected?.submissionId === submission.submissionId ? "selected" : ""}`} key={submission.submissionId} onClick={() => openSubmission(submission)}><span>#{submission.submissionId.slice(0, 8)}</span><span>{submission.confirmedIdentity ?? submission.suggestedIdentity ?? "sin identidad"}</span><span className="eyebrow">{submission.state}</span></div>)}</div>
             {selected ? <div className="actions"><button className="button secondary" type="button" disabled={busy} onClick={addSubmissionFromPageIds}>Registrar assets de nuevo</button><button className="button" type="button" disabled={busy} onClick={startOmr}>Iniciar lectura OMR</button></div> : null}
           </div>

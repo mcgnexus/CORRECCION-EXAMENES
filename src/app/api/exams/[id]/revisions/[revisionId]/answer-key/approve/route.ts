@@ -1,7 +1,7 @@
 import { assertSameOrigin, requireOwner } from "@/lib/auth";
 import { AppError, errorResponse } from "@/lib/errors";
 import { getAnswerKeyRepository } from "@/repositories";
-import { getExamRevisionRepository, getStructureProposalRepository } from "@/repositories";
+import { getExamRepository, getExamRevisionRepository, getStructureProposalRepository } from "@/repositories";
 
 export async function POST(request: Request, context: { params: Promise<{ id: string; revisionId: string }> }) {
   const requestId = crypto.randomUUID();
@@ -26,6 +26,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       }
     }
     const approved = await getAnswerKeyRepository().update(ownerId, params.id, current.value.answerKeyRevisionId, body.expectedEtag, { status: "approved", approvedBy: ownerId, approvedAt: new Date().toISOString() });
+    const exam = await getExamRepository().getWithMeta(ownerId, params.id);
+    if (exam) await getExamRepository().update(ownerId, params.id, exam.etag, { state: "approved" }).catch(() => undefined);
     return Response.json({ data: approved.answerKey, requestId }, { headers: { "x-request-id": requestId, etag: approved.etag } });
   } catch (error) { return errorResponse(error, requestId); }
 }

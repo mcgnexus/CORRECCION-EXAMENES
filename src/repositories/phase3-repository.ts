@@ -43,6 +43,16 @@ export class OmrTemplateRepository extends JsonRepository {
 
   async get(ownerId: string, examId: string, templateId: string) { return this.readStored<OmrTemplateRevision>(this.path(ownerId, examId, templateId), omrTemplateRevisionSchema); }
 
+  async list(ownerId: string, examId: string) {
+    const templates: Array<{ value: OmrTemplateRevision; etag: string }> = [];
+    for (const path of await this.blobs.list(`owners/${ownerId}/exams/${examId}/omr-templates/`)) {
+      if (!path.endsWith("/manifest.json")) continue;
+      const item = await this.readStored<OmrTemplateRevision>(path, omrTemplateRevisionSchema);
+      if (item) templates.push(item);
+    }
+    return templates;
+  }
+
   async update(ownerId: string, examId: string, templateId: string, expectedEtag: string, patch: Partial<Omit<OmrTemplateRevision, "templateId" | "ownerId" | "examId" | "createdAt">>) {
     const current = await this.get(ownerId, examId, templateId);
     if (!current) throw new AppError("NOT_FOUND", "Plantilla no encontrada.", 404);
