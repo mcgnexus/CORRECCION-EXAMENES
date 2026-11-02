@@ -1,8 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { MemoryBlobStore } from "../src/repositories/blob-store";
+import { MemoryBlobStore, toStrongEtag } from "../src/repositories/blob-store";
 import { ExamRepository } from "../src/repositories/exam-repository";
 import { transitionExam } from "../src/domain/exam-state";
 import { ResponseRegionRepository, TranscriptionRepository } from "../src/repositories/phase4-repository";
+
+describe("etags de Blob", () => {
+  it("normaliza ETags débiles al formato fuerte que exige ifMatch", () => {
+    expect(toStrongEtag('W/"abc"')).toBe('"abc"');
+    expect(toStrongEtag('"abc"')).toBe('"abc"');
+  });
+});
 
 describe("ExamRepository", () => {
   it("crea manifiestos inmutables y exige el ETag esperado para editar", async () => {

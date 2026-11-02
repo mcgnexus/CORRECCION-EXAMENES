@@ -23,11 +23,46 @@
 - Fixture sintético: `fixtures/phase4-open-responses.json`.
 - Casos cubiertos: lectura clara concordante, transcripción incierta corregida y discrepancia con override humano.
 - `npm run typecheck`, `npm run lint`, `npm run build` y `npm test -- --run` correctos.
-- Suite actual: 33 pruebas.
+- Suite actual: 34 pruebas.
 - No se usan fotografías reales ni datos personales para esta fase.
 
-## Pendiente de Preview
+## Gate E2E en Preview
 
-- Ejecutar el flujo con el fixture sintético en Preview usando assets privados y proveedores configurados.
-- Verificar reintentos/idempotencia de workflows y limpieza de crops, outputs y manifiestos derivados.
-- Validar experiencia visual del editor de regiones con páginas PDF e imágenes rotadas.
+Ejecutado sobre un Preview temporal del mismo commit, con propietario aislado
+`gate-phase4`, credenciales temporales y una imagen sintética sin PII. Los
+Preview y todos los blobs del propietario se eliminaron al finalizar.
+
+Resultado observado:
+
+- 3 regiones manuales y 3 crops privados generados en servidor.
+- 3 transcripciones Gemini propuestas; se conservaron también las revisiones
+  previas, por eso el listado acumuló 6 transcripciones.
+- 6 evaluaciones completadas (3 preguntas × Gemini/DeepSeek).
+- Decisiones humanas cubriendo los tres caminos: elegir Gemini, elegir DeepSeek
+  y puntuación manual con motivo.
+- Snapshot mixto: 5/6 puntos abiertos, nota 8.33, 3 preguntas abiertas y sin
+  bloqueos.
+- Cierre de entrega y snapshot correcto; un segundo cierre con ETag obsoleto fue
+  rechazado con `409`.
+- Limpieza verificada: 0 blobs restantes bajo `owners/gate-phase4/`.
+
+## Correcciones surgidas del gate
+
+- Vercel Blob devuelve ETags débiles (`W/"..."`) en lectura, mientras `put`
+  exige el ETag fuerte en `ifMatch`. El adaptador ahora normaliza ambos lados;
+  sin esto fallaban las actualizaciones CAS en producción.
+- Los errores de proveedor se pierden al cruzar el límite de un step del
+  workflow. Los steps ahora devuelven un fallo estructurado con código, mensaje,
+  HTTP y `retryable`, y se registran en el `ProviderRun`.
+- La salida de los modelos se normaliza antes de validarla (números como texto,
+  spans como cadenas, `maxPoints` tomado de la rúbrica).
+- Se añadieron reintentos acotados con espera durable para fallos recuperables
+  (por ejemplo Gemini HTTP 503) en transcripción y evaluación.
+- Los errores no controlados de API se registran con `requestId` para diagnóstico
+  sin exponer datos sensibles.
+
+## Pendiente
+
+- Validar la experiencia visual del editor de regiones con páginas PDF e
+  imágenes rotadas en escritorio y móvil.
+- Probar cálculos, dibujos y visión DeepSeek en una iteración posterior.

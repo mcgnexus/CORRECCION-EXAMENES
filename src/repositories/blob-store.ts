@@ -15,6 +15,10 @@ function etagFor(body: Uint8Array) {
   return `"${createHash("sha256").update(body).digest("hex")}"`;
 }
 
+export function toStrongEtag(etag: string) {
+  return etag.replace(/^W\//, "");
+}
+
 export class MemoryBlobStore implements BlobStore {
   private readonly objects = new Map<string, StoredObject>();
 
@@ -55,15 +59,16 @@ export class VercelPrivateBlobStore implements BlobStore {
   }
 
   async put(path: string, body: Uint8Array, contentType: string, options: { ifMatch?: string; ifNoneMatch?: boolean } = {}) {
-    const result = await put(path, Buffer.from(body), { ...this.auth(), access: "private", contentType, ...(options.ifMatch ? { ifMatch: options.ifMatch } : {}), allowOverwrite: Boolean(options.ifMatch) });
-    return { path: result.pathname, body: new Uint8Array(body), contentType: result.contentType, etag: result.etag };
+    const ifMatch = options.ifMatch ? toStrongEtag(options.ifMatch) : undefined;
+    const result = await put(path, Buffer.from(body), { ...this.auth(), access: "private", contentType, ...(ifMatch ? { ifMatch } : {}), allowOverwrite: Boolean(ifMatch) });
+    return { path: result.pathname, body: new Uint8Array(body), contentType: result.contentType, etag: toStrongEtag(result.etag) };
   }
 
   async get(path: string) {
     const result = await get(path, { ...this.auth(), access: "private", useCache: false });
     if (!result || result.statusCode !== 200) return null;
     const body = new Uint8Array(await new Response(result.stream).arrayBuffer());
-    return { path: result.blob.pathname, body, contentType: result.blob.contentType, etag: result.blob.etag };
+    return { path: result.blob.pathname, body, contentType: result.blob.contentType, etag: toStrongEtag(result.blob.etag) };
   }
 
   async list(prefix: string) {
