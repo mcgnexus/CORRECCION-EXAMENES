@@ -15,6 +15,12 @@ export const omrBubbleSchema = z.object({
   height: z.number().gt(0).max(1),
 });
 
+export const omrPreprocessSchema = z.object({
+  rotation: z.number().min(-180).max(180).default(0),
+  brightness: z.number().min(0.5).max(2).default(1),
+  contrast: z.number().min(0.5).max(2).default(1),
+});
+
 export const omrTemplateRevisionSchema = z
   .object({
     schemaVersion,
@@ -27,6 +33,7 @@ export const omrTemplateRevisionSchema = z
     sourceAnchors: z.array(z.tuple([z.number().min(0).max(1), z.number().min(0).max(1)])),
     targetAnchors: z.array(z.tuple([z.number().min(0).max(1), z.number().min(0).max(1)])),
     bubbles: z.array(omrBubbleSchema),
+    preprocess: omrPreprocessSchema.default({ rotation: 0, brightness: 1, contrast: 1 }),
     threshold: z.number().min(0).max(1).default(0.35),
     margin: z.number().min(0).max(1).default(0.08),
     algorithmVersion: z.string().min(1).default("omr-1"),

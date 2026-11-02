@@ -59,6 +59,7 @@ async function callPythonOmr(page: OmrPageInput, template: OmrTemplateRevision) 
     assetId: page.assetId,
     mode: "asset_bytes",
     imageBase64: page.imageBase64,
+    preprocess: template.preprocess ?? { rotation: 0, brightness: 1, contrast: 1 },
     template: {
       canvasWidth: template.canvasWidth,
       canvasHeight: template.canvasHeight,
@@ -70,10 +71,15 @@ async function callPythonOmr(page: OmrPageInput, template: OmrTemplateRevision) 
       algorithmVersion: template.algorithmVersion,
     },
   });
-  const origin = process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000";
+  const origin = (process.env.OMR_SERVICE_URL ?? (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000")).replace(/\/$/, "");
+  const headers: Record<string, string> = { "content-type": "application/json", "x-internal-service-secret": secret };
+  if (process.env.VERCEL_AUTOMATION_BYPASS_SECRET) {
+    headers["x-vercel-protection-bypass"] = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
+    headers["x-vercel-set-bypass-cookie"] = "samesitenone";
+  }
   const response = await fetch(`${origin}/api/omr`, {
     method: "POST",
-    headers: { "content-type": "application/json", "x-internal-service-secret": secret },
+    headers,
     body,
     signal: AbortSignal.timeout(INTERNAL_TIMEOUT_MS),
   });

@@ -108,7 +108,10 @@ export default function ExamDetailPage() {
       {loading ? <p className="intro">Cargando examen...</p> : exam ? <section>
         <h1>{exam.title}</h1>
         <p className="intro">{exam.subject}. Los originales permanecen privados; las transformaciones se guardan como revisión del manifiesto.</p>
-        <div className="actions"><button className="button" type="button" disabled={extracting || manifest.pages.length === 0} onClick={extractStructure}>{extracting ? "Iniciando extracción..." : "Extraer estructura del examen"}</button></div>
+        <div className="actions">
+          <a className="button secondary" href={`/exams/${examId}/omr-template`}>Calibrar plantilla OMR</a>
+          <button className="button" type="button" disabled={extracting || manifest.pages.length === 0} onClick={extractStructure}>{extracting ? "Iniciando extracción..." : "Extraer estructura del examen"}</button>
+        </div>
         {message ? <p className="notice" role="status">{message}</p> : null}
         <div className="detail-grid">
           <div className="panel">

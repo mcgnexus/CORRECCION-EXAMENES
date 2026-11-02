@@ -118,6 +118,28 @@ describe("contratos Fase 3", () => {
     expect(() => omrTemplateRevisionSchema.parse({ ...base, bubbles: [] })).toThrow();
   });
 
+  it("aplica el preprocesamiento por defecto y valida sus límites", () => {
+    const base = {
+      schemaVersion: 1,
+      templateId: "tpl-1",
+      examId: "exam-1",
+      ownerId: "owner-1",
+      state: "draft",
+      canvasWidth: 800,
+      canvasHeight: 1000,
+      sourceAnchors: [[0, 0], [1, 0], [1, 1], [0, 1]],
+      targetAnchors: [[0, 0], [1, 0], [1, 1], [0, 1]],
+      bubbles: [{ questionId: "q1", optionId: "A", x: 0.1, y: 0.1, width: 0.05, height: 0.03 }],
+      createdAt: "2026-11-01T00:00:00Z",
+      updatedAt: "2026-11-01T00:00:00Z",
+    };
+    const parsed = omrTemplateRevisionSchema.parse(base);
+    expect(parsed.preprocess).toEqual({ rotation: 0, brightness: 1, contrast: 1 });
+    const customized = omrTemplateRevisionSchema.parse({ ...base, preprocess: { rotation: 2.5, brightness: 1.2, contrast: 1.1 } });
+    expect(customized.preprocess.rotation).toBe(2.5);
+    expect(() => omrTemplateRevisionSchema.parse({ ...base, preprocess: { rotation: 400, brightness: 1, contrast: 1 } })).toThrow();
+  });
+
   it("conserva snapshot en draft con incidencias", () => {
     const snapshot = scoreSnapshotSchema.parse({
       schemaVersion: 1,

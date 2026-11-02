@@ -13,7 +13,10 @@ import os
 from http.server import BaseHTTPRequestHandler
 from typing import Any
 
-from python.omr import BubbleRegion, OMRTemplate, process_image
+import cv2
+import numpy as np
+
+from python.omr import BubbleRegion, OMRTemplate, calibrate_sheet, preprocess_image, process_image
 
 
 def _json_response(handler: BaseHTTPRequestHandler, status: int, payload: dict[str, Any]) -> None:
@@ -47,8 +50,34 @@ class handler(BaseHTTPRequestHandler):
             if payload.get("imageUrl") or payload.get("pathname"):
                 _json_response(self, 400, {"error": "No se aceptan URL ni pathname"})
                 return
-            if payload.get("mode") != "synthetic_probe" or not isinstance(payload.get("imageBase64"), str):
-                _json_response(self, 501, {"error": "ASSET_RESOLVER_PENDING"})
+            if payload.get("mode") == "calibrate":
+                result = calibrate_sheet(
+                    base64.b64decode(payload["imageBase64"], validate=True),
+                    rotation=float(payload.get("rotation", 0.0)),
+                    brightness=float(payload.get("brightness", 1.0)),
+                    contrast=float(payload.get("contrast", 1.0)),
+                    canvas_width=int(payload.get("canvasWidth", 1000)),
+                    canvas_height=int(payload.get("canvasHeight", 930)),
+                    expected_rows=int(payload.get("expectedRows", 25)),
+                )
+                _json_response(self, 200, result)
+                return
+
+            if payload.get("mode") == "synthetic_probe":
+                if not isinstance(payload.get("imageBase64"), str):
+                    _json_response(self, 400, {"error": "imageBase64 es obligatorio"})
+                    return
+                image_base64 = payload["imageBase64"]
+            elif payload.get("mode") == "asset_bytes":
+                if not isinstance(payload.get("imageBase64"), str):
+                    _json_response(self, 400, {"error": "imageBase64 es obligatorio"})
+                    return
+                if payload.get("imageUrl") or payload.get("pathname"):
+                    _json_response(self, 400, {"error": "No se aceptan URL ni pathname"})
+                    return
+                image_base64 = payload["imageBase64"]
+            else:
+                _json_response(self, 501, {"error": "UNSUPPORTED_MODE"})
                 return
 
             template_data = payload.get("template")
@@ -63,7 +92,34 @@ class handler(BaseHTTPRequestHandler):
                 bubbles=tuple(BubbleRegion(**bubble) for bubble in template_data.get("bubbles", [])),
                 algorithm_version=str(template_data.get("algorithmVersion", "omr-1")),
             )
-            result = process_image(base64.b64decode(payload["imageBase64"], validate=True), template)
+            image_bytes = base64.b64decode(image_base64, validate=True)
+            pre = payload.get("preprocess") or {}
+            pre_rotation = float(pre.get("rotation", 0.0))
+            pre_brightness = float(pre.get("brightness", 1.0))
+            pre_contrast = float(pre.get("contrast", 1.0))
+            if pre_rotation or pre_brightness != 1.0 or pre_contrast != 1.0:
+                image_bytes = preprocess_image(image_bytes, rotation=pre_rotation, brightness=pre_brightness, contrast=pre_contrast)
+            # Las plantillas guardadas por la UI usan anclas normalizadas (0..1)
+            # relativas a la imagen preprocesada; se escalan a píxeles aquí.
+            source_anchors = template.source_anchors
+            if source_anchors and all(0.0 <= value <= 1.0001 for point in source_anchors for value in point):
+                decoded = cv2.imdecode(np.frombuffer(bytes(image_bytes), dtype=np.uint8), cv2.IMREAD_COLOR)
+                if decoded is not None:
+                    height, width = decoded.shape[:2]
+                    source_anchors = tuple((x * width, y * height) for x, y in source_anchors)
+                template = OMRTemplate(
+                    canvas_width=template.canvas_width,
+                    canvas_height=template.canvas_height,
+                    source_anchors=source_anchors,
+                    target_anchors=template.target_anchors,
+                    bubbles=template.bubbles,
+                    algorithm_version=template.algorithm_version,
+                )
+            options = {
+                "threshold": float(template_data.get("threshold", 0.35)),
+                "margin": float(template_data.get("margin", 0.08)),
+            }
+            result = process_image(image_bytes, template, **options)
             _json_response(self, 200, {"assetId": payload["assetId"], "result": result})
         except (KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
             _json_response(self, 400, {"error": "INVALID_OMR_REQUEST", "detail": str(error)})

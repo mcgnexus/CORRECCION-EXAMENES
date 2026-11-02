@@ -2,7 +2,7 @@ import { z } from "zod";
 import { assertSameOrigin, requireOwner } from "@/lib/auth";
 import { AppError, errorResponse } from "@/lib/errors";
 import { getExamRepository, getOmrTemplateRepository } from "@/repositories";
-import { omrBubbleSchema } from "@/domain/phase3-schemas";
+import { omrBubbleSchema, omrPreprocessSchema } from "@/domain/phase3-schemas";
 
 const patchSchema = z.object({
   expectedEtag: z.string().min(1),
@@ -11,6 +11,7 @@ const patchSchema = z.object({
   sourceAnchors: z.array(z.tuple([z.number().min(0).max(1), z.number().min(0).max(1)])).length(4).optional(),
   targetAnchors: z.array(z.tuple([z.number().min(0).max(1), z.number().min(0).max(1)])).length(4).optional(),
   bubbles: z.array(omrBubbleSchema).min(1).optional(),
+  preprocess: omrPreprocessSchema.optional(),
   threshold: z.number().min(0).max(1).optional(),
   margin: z.number().min(0).max(1).optional(),
   state: z.enum(["draft", "testing", "stale"]).optional(),

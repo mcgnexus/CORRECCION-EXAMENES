@@ -60,6 +60,11 @@ h1 { max-width: 720px; font-size: clamp(2.6rem, 7vw, 6.8rem); line-height: .94; 
 .toolbar .button { padding: 8px 10px; font-size: .7rem; }
 .mini-form { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 12px; }
 .mini-form .input { min-width: 0; padding: 8px; }
+.calibration-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px 18px; }
+.calibration-grid input[type="range"] { width: 100%; accent-color: var(--accent); }
+.calibration-canvas { max-width: 100%; cursor: crosshair; border: 1px solid var(--line); background: #e7e1d6; }
+.calibration-rectified { max-width: 100%; border: 1px solid var(--line); background: #e7e1d6; }
+@media (max-width: 900px) { .calibration-grid { grid-template-columns: 1fr; } }
 @media (max-width: 900px) { .detail-grid { grid-template-columns: 1fr; } }
 @media (max-width: 760px) {
   .shell { padding: 22px 18px; }

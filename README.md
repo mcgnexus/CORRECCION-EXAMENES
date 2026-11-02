@@ -50,6 +50,9 @@ Copiar los nombres de `.env.example` al entorno local o de Vercel sin incluir se
 - `GET /api/exams` y `POST /api/exams`.
 - `GET /api/exams/:id` y `PATCH /api/exams/:id` con `expectedEtag`.
 - `GET /api/exams/:id/assets`, `/pages` y `PATCH /pages` con revisión CAS.
++- `POST /api/exams/:id/omr-template`, `PATCH/POST /api/exams/:id/omr-template/:templateId` (editar/aprobar).
++- `POST /api/exams/:id/omr-calibrate` (análisis con rotación, brillo y contraste).
++- `POST /api/exams/:id/batches`, `/batches/:batchId/submissions` y revisión/puntuación por entrega.
 - `POST /api/exams/:id/assets/authorize`, `GET /api/assets/:id/metadata`, `GET /api/assets/:id/content` y `DELETE /api/assets/:id`.
 - `POST /api/settings/check-providers`.
 - `POST /api/phase0/providers`, sonda interna sintética de Gemini/DeepSeek y búsqueda.
