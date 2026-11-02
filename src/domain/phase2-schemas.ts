@@ -117,6 +117,7 @@ export const solutionProposalSchema = z.object({
 
 export const questionDecisionSchema = z.object({
   questionId: idSchema,
+  sectionId: idSchema.optional(),
   answer: z.unknown(),
   explanation: z.string(),
   rubric: rubricSchema,

@@ -11,6 +11,7 @@ export type ScoreInput = {
   ownerId: string;
   answerKeyRevisionId: string;
   templateRevisionId: string;
+  scoringPolicyRevisionId?: string;
   readings: OmrReading[];
   answersByQuestion: Record<string, { correctOptionIds: string[] }>;
   manualSelections: Record<string, { selectedOptionIds: string[]; status: "single" | "blank" }>;
@@ -66,6 +67,7 @@ export function computeScore(input: ScoreInput): { computation: ScoreComputation
         ownerId: input.ownerId,
         answerKeyRevisionId: input.answerKeyRevisionId,
         templateRevisionId: input.templateRevisionId,
+        scoringPolicyRevisionId: input.scoringPolicyRevisionId ?? input.policy.policyId,
         state: "draft",
         questionScores,
         correct,
@@ -75,6 +77,44 @@ export function computeScore(input: ScoreInput): { computation: ScoreComputation
         rawPoints: 0,
         score: 0,
         blockingIssues,
+        openQuestionScores: [],
+        openPoints: 0,
+        openMaximumPoints: 0,
+        openPending: 0,
+        transcriptionRevisionIds: [],
+        evaluationIds: [],
+        decisionIds: [],
+      },
+      blockingIssues,
+    };
+  }
+
+  if (questionScores.length === 0) {
+    return {
+      computation: {
+        submissionId: input.submissionId,
+        batchId: input.batchId,
+        examId: input.examId,
+        ownerId: input.ownerId,
+        answerKeyRevisionId: input.answerKeyRevisionId,
+        templateRevisionId: input.templateRevisionId,
+        scoringPolicyRevisionId: input.scoringPolicyRevisionId ?? input.policy.policyId,
+        state: "review",
+        questionScores,
+        correct: 0,
+        blank: 0,
+        incorrect: 0,
+        pending: 0,
+        rawPoints: 0,
+        score: 0,
+        blockingIssues,
+        openQuestionScores: [],
+        openPoints: 0,
+        openMaximumPoints: 0,
+        openPending: 0,
+        transcriptionRevisionIds: [],
+        evaluationIds: [],
+        decisionIds: [],
       },
       blockingIssues,
     };
@@ -89,6 +129,7 @@ export function computeScore(input: ScoreInput): { computation: ScoreComputation
       ownerId: input.ownerId,
       answerKeyRevisionId: input.answerKeyRevisionId,
       templateRevisionId: input.templateRevisionId,
+      scoringPolicyRevisionId: input.scoringPolicyRevisionId ?? input.policy.policyId,
       state: result.pending ? "draft" : "review",
       questionScores,
       correct,
@@ -98,6 +139,13 @@ export function computeScore(input: ScoreInput): { computation: ScoreComputation
       rawPoints: result.rawPoints,
       score: result.score,
       blockingIssues,
+      openQuestionScores: [],
+      openPoints: 0,
+      openMaximumPoints: 0,
+      openPending: 0,
+      transcriptionRevisionIds: [],
+      evaluationIds: [],
+      decisionIds: [],
     },
     blockingIssues,
   };

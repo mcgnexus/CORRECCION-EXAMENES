@@ -19,6 +19,19 @@ const patchSchema = z.object({
 
 const approveSchema = z.object({ expectedEtag: z.string().min(1) });
 
+export async function GET(_request: Request, context: { params: Promise<{ id: string; templateId: string }> }) {
+  const requestId = crypto.randomUUID();
+  try {
+    const { ownerId } = await requireOwner();
+    const params = await context.params;
+    const template = await getOmrTemplateRepository().get(ownerId, params.id, params.templateId);
+    if (!template) throw new AppError("NOT_FOUND", "Plantilla no encontrada.", 404);
+    return Response.json({ data: template.value, requestId }, { headers: { "x-request-id": requestId, etag: template.etag } });
+  } catch (error) {
+    return errorResponse(error, requestId);
+  }
+}
+
 export async function PATCH(request: Request, context: { params: Promise<{ id: string; templateId: string }> }) {
   const requestId = crypto.randomUUID();
   try {

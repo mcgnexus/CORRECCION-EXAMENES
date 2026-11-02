@@ -1,0 +1,41 @@
+{
+  "fixture": true,
+  "description": "Respuestas abiertas manuscritas sintéticas para la validación de Puerta B.",
+  "section": {
+    "sectionId": "open",
+    "kind": "open",
+    "maxPoints": 6,
+    "weightBasisPoints": 10000
+  },
+  "questions": [
+    {
+      "questionId": "open-1",
+      "type": "short_text",
+      "case": "clear_concordant",
+      "expectedTranscriptionState": "confirmed",
+      "expectedDecisionSource": "gemini",
+      "expectedPoints": 2,
+      "maxPoints": 2
+    },
+    {
+      "questionId": "open-2",
+      "type": "essay",
+      "case": "uncertain_corrected",
+      "expectedTranscriptionState": "confirmed",
+      "expectedDecisionSource": "manual",
+      "expectedPoints": 2,
+      "maxPoints": 2
+    },
+    {
+      "questionId": "open-3",
+      "type": "essay",
+      "case": "partial_disagreement",
+      "expectedTranscriptionState": "confirmed",
+      "expectedDecisionSource": "manual",
+      "expectedPoints": 1,
+      "maxPoints": 2
+    }
+  ],
+  "expectedOpenPoints": 5,
+  "expectedScore": 8.33
+}

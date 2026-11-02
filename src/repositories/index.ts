@@ -7,6 +7,7 @@ import { AssetRepository } from "./asset-repository";
 import { DocumentPagesRepository } from "./document-pages-repository";
 import { AnswerKeyRepository, ExamRevisionRepository, ProviderRunRepository, SolutionProposalRepository, StructureProposalRepository } from "./phase2-repository";
 import { BatchRepository, ManualDecisionRepository, OmrReadingRepository, OmrTemplateRepository, ScoreSnapshotRepository, SubmissionRepository } from "./phase3-repository";
+import { EvaluationRepository, ResponseDecisionRepository, ResponseRegionRepository, TranscriptionRepository } from "./phase4-repository";
 
 export function getExamRepository() {
   return new ExamRepository(getBlobStore());
@@ -43,3 +44,7 @@ export function getSubmissionRepository() { return new SubmissionRepository(getB
 export function getOmrReadingRepository() { return new OmrReadingRepository(getBlobStore()); }
 export function getManualDecisionRepository() { return new ManualDecisionRepository(getBlobStore()); }
 export function getScoreSnapshotRepository() { return new ScoreSnapshotRepository(getBlobStore()); }
+export function getResponseRegionRepository() { return new ResponseRegionRepository(getBlobStore()); }
+export function getTranscriptionRepository() { return new TranscriptionRepository(getBlobStore()); }
+export function getEvaluationRepository() { return new EvaluationRepository(getBlobStore()); }
+export function getResponseDecisionRepository() { return new ResponseDecisionRepository(getBlobStore()); }

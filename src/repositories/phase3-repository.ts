@@ -53,13 +53,25 @@ export class OmrTemplateRepository extends JsonRepository {
 export class BatchRepository extends JsonRepository {
   private path(ownerId: string, examId: string, batchId: string) { return `owners/${ownerId}/exams/${examId}/batches/${batchId}/manifest.json`; }
 
-  async create(input: Pick<Batch, "examId" | "ownerId" | "answerKeyRevisionId" | "templateRevisionId" | "maxPages">) {
+  async create(input: Pick<Batch, "examId" | "ownerId" | "answerKeyRevisionId" | "templateRevisionId" | "scoringPolicyRevisionId" | "scoringPolicy" | "maxPages">) {
     const batch = batchSchema.parse({ schemaVersion: 1, batchId: randomUUID(), ...input, state: "draft", submissionIds: [], blockingIssues: [], createdAt: now(), updatedAt: now() });
     const stored = await this.writeStored(this.path(batch.ownerId, batch.examId, batch.batchId), batch);
     return { batch, etag: stored.etag };
   }
 
   async get(ownerId: string, examId: string, batchId: string) { return this.readStored<Batch>(this.path(ownerId, examId, batchId), batchSchema); }
+
+  async list(ownerId: string, examId: string) {
+    const paths = await this.blobs.list(`owners/${ownerId}/exams/${examId}/batches/`);
+    const batches: Array<{ value: Batch; etag: string }> = [];
+    for (const path of paths.filter((item) => item.endsWith("/manifest.json"))) {
+      const stored = await this.blobs.get(path);
+      if (!stored) continue;
+      const parsed = batchSchema.safeParse(decode<unknown>(stored.body));
+      if (parsed.success) batches.push({ value: parsed.data, etag: stored.etag });
+    }
+    return batches;
+  }
 
   async update(ownerId: string, examId: string, batchId: string, expectedEtag: string, patch: Partial<Pick<Batch, "state" | "submissionIds" | "blockingIssues">>) {
     const current = await this.get(ownerId, examId, batchId);
@@ -79,7 +91,19 @@ export class SubmissionRepository extends JsonRepository {
 
   async get(ownerId: string, batchId: string, submissionId: string) { return this.readStored<Submission>(this.path(ownerId, batchId, submissionId), submissionSchema); }
 
-  async update(ownerId: string, batchId: string, submissionId: string, expectedEtag: string, patch: Partial<Pick<Submission, "state" | "suggestedIdentity" | "identityConfidence" | "identitySource" | "confirmedIdentity" | "confirmedBy" | "confirmedAt" | "ocrRef" | "readingIds" | "snapshotId">>) {
+  async list(ownerId: string, batchId: string) {
+    const paths = await this.blobs.list(`owners/${ownerId}/batches/${batchId}/submissions/`);
+    const submissions: Array<{ value: Submission; etag: string }> = [];
+    for (const path of paths.filter((item) => item.endsWith("/manifest.json"))) {
+      const stored = await this.blobs.get(path);
+      if (!stored) continue;
+      const parsed = submissionSchema.safeParse(decode<unknown>(stored.body));
+      if (parsed.success) submissions.push({ value: parsed.data, etag: stored.etag });
+    }
+    return submissions;
+  }
+
+  async update(ownerId: string, batchId: string, submissionId: string, expectedEtag: string, patch: Partial<Pick<Submission, "state" | "suggestedIdentity" | "identityConfidence" | "identitySource" | "confirmedIdentity" | "confirmedBy" | "confirmedAt" | "ocrRef" | "readingIds" | "snapshotId" | "activeResponseRegionRevisionId" | "responseTranscriptionIds" | "responseEvaluationIds" | "responseDecisionIds" | "responseBlockingIssues">>) {
     const current = await this.get(ownerId, batchId, submissionId);
     if (!current) throw new AppError("NOT_FOUND", "Entrega no encontrada.", 404);
     return this.applyUpdate<Submission>(this.path(ownerId, batchId, submissionId), submissionSchema, current, expectedEtag, patch);
@@ -97,6 +121,10 @@ export class OmrReadingRepository extends JsonRepository {
 
   async get(ownerId: string, readingId: string) { return this.readStored<OmrReading>(this.path(ownerId, readingId), omrReadingSchema); }
 
+  async list(ownerId: string, readingIds: string[]) {
+    return (await Promise.all(readingIds.map((readingId) => this.get(ownerId, readingId)))).filter((reading): reading is { value: OmrReading; etag: string } => Boolean(reading));
+  }
+
   async update(ownerId: string, readingId: string, expectedEtag: string, patch: Partial<Pick<OmrReading, "status" | "rows" | "errorCode">>) {
     const current = await this.get(ownerId, readingId);
     if (!current) throw new AppError("NOT_FOUND", "Lectura no encontrada.", 404);
@@ -112,6 +140,19 @@ export class ManualDecisionRepository extends JsonRepository {
     const stored = await this.writeStored(this.path(decision.actorId, decision.decisionId), decision);
     return { decision, etag: stored.etag };
   }
+
+  async listByReadings(ownerId: string, readingIds: string[]) {
+    const wanted = new Set(readingIds);
+    const paths = await this.blobs.list(`owners/${ownerId}/omr-decisions/`);
+    const decisions: ManualDecision[] = [];
+    for (const path of paths) {
+      const stored = await this.blobs.get(path);
+      if (!stored) continue;
+      const parsed = manualDecisionSchema.safeParse(decode<unknown>(stored.body));
+      if (parsed.success && wanted.has(parsed.data.readingId)) decisions.push(parsed.data);
+    }
+    return decisions;
+  }
 }
 
 export class ScoreSnapshotRepository extends JsonRepository {
@@ -125,7 +166,7 @@ export class ScoreSnapshotRepository extends JsonRepository {
 
   async get(ownerId: string, snapshotId: string) { return this.readStored<ScoreSnapshot>(this.path(ownerId, snapshotId), scoreSnapshotSchema); }
 
-  async update(ownerId: string, snapshotId: string, expectedEtag: string, patch: Partial<Pick<ScoreSnapshot, "state" | "questionScores" | "correct" | "blank" | "incorrect" | "pending" | "rawPoints" | "score" | "blockingIssues">>) {
+  async update(ownerId: string, snapshotId: string, expectedEtag: string, patch: Partial<Pick<ScoreSnapshot, "state" | "questionScores" | "correct" | "blank" | "incorrect" | "pending" | "rawPoints" | "score" | "blockingIssues" | "openQuestionScores" | "openPoints" | "openMaximumPoints" | "openPending" | "responseRegionRevisionId" | "transcriptionRevisionIds" | "evaluationIds" | "decisionIds">>) {
     const current = await this.get(ownerId, snapshotId);
     if (!current) throw new AppError("NOT_FOUND", "Snapshot no encontrado.", 404);
     return this.applyUpdate<ScoreSnapshot>(this.path(ownerId, snapshotId), scoreSnapshotSchema, current, expectedEtag, patch);

@@ -43,6 +43,7 @@ describe("puntuación Fase 3", () => {
       readings: [readingResult],
       answersByQuestion: { q1: { correctOptionIds: ["A"] }, q2: { correctOptionIds: ["C"] }, q3: { correctOptionIds: ["C"] } },
       manualSelections: {},
+      scoringPolicyRevisionId: "policy-fixture",
       policy,
     });
     expect(blockingIssues).toHaveLength(0);
@@ -50,6 +51,7 @@ describe("puntuación Fase 3", () => {
     expect(computation.blank).toBe(1);
     expect(computation.incorrect).toBe(1);
     expect(computation.score).toBeCloseTo((1 - 0.25) / 3 * 10, 2);
+    expect(computation.scoringPolicyRevisionId).toBe("policy-fixture");
     expect(computation.state).toBe("review");
   });
 

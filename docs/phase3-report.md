@@ -6,13 +6,13 @@
 - Repositorios Blob con CAS/ETag para plantillas, lotes, entregas, lecturas y snapshots.
 - Workflow OMR por entrega: carga de páginas privadas, llamada autenticada a Python (`asset_bytes`), persistencia de lecturas e incidencias.
 - Python OMR ampliado a modo interno autenticado con threshold/margin configurables.
-- API: crear plantilla, editar/aprobar plantilla, crear lote (exige plantilla aprobada), registrar entregas, iniciar OMR, confirmar identidad, decisiones de revisión y puntuar con solucionario aprobado.
+- API: crear/consultar plantilla, editar/aprobar plantilla, crear lote con política de scoring explícita y solucionario aprobado, registrar entregas, iniciar OMR, consultar lecturas, confirmar identidad, decisiones de revisión, puntuar y cerrar con CAS.
 - Puntuación determinista reutilizando `calculateTestScore`: `ambiguous`/`multiple`/`unreadable` y lecturas fallidas bloquean; decisión manual tiene prioridad.
-- UI de lote: entregas, identidad, inicio OMR y puntuación con snapshot.
+- UI de lote: entregas, identidad, inicio OMR, cola de incidencias con resolución manual, puntuación y cierre con snapshot.
 
 ## Verificación local
 
-- 27 pruebas correctas, incluidas 5 nuevas de Fase 3 (puntuación, bloqueos, decisión manual, contratos de plantilla y snapshot).
+- 28 pruebas correctas, incluidas las de Fase 3 para política explícita, puntuación, bloqueos, decisión manual, contratos de plantilla y snapshot.
 - `npm run typecheck`, `npm run lint`, `npm run build` y `py_compile` correctos.
 
 ## Calibración manual (UI)
@@ -80,9 +80,12 @@ La foto usada para esta verificación permanece sin versionar (contiene datos pe
 ## Pendiente de Preview
 
 - Flujo end-to-end en Preview con esta plantilla y la foto subida como asset privado.
+- Validación del cierre en Preview con política sintética, auditoría y borrado posterior de todos los assets privados.
 - Sugerencia OCR local de identidad (motor pendiente de empaquetar); actualmente identidad manual/confirmada.
 - Editor visual de plantilla (overlay de anclas/burbujas); la plantilla se crea vía API o script de calibración.
 
-## Próximo hito
+## Siguiente hito
 
-Métricas de Puerta A con fixtures reales y, después, Puerta B (manuscritos, fórmulas y dibujos con visión dual).
+Puerta B inicial para manuscritos `short_text`/`essay` está documentada en
+`docs/phase4-report.md`. Fórmulas, cálculos, dibujos y visión DeepSeek quedan
+para una iteración posterior.

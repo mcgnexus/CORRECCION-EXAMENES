@@ -5,6 +5,20 @@ import { getAssetRepository, getBatchRepository, getDocumentPagesRepository, get
 import { start } from "workflow/api";
 import { readSubmissionOmrWorkflow } from "@/workflows/phase3-workflows";
 
+export async function GET(_request: Request, context: { params: Promise<{ id: string; batchId: string }> }) {
+  const requestId = crypto.randomUUID();
+  try {
+    const { ownerId } = await requireOwner();
+    const params = await context.params;
+    const batch = await getBatchRepository().get(ownerId, params.id, params.batchId);
+    if (!batch) throw new AppError("NOT_FOUND", "Lote no encontrado.", 404);
+    const submissions = await getSubmissionRepository().list(ownerId, params.batchId);
+    return Response.json({ data: submissions.map((item) => item.value), requestId }, { headers: { "x-request-id": requestId } });
+  } catch (error) {
+    return errorResponse(error, requestId);
+  }
+}
+
 const createSchema = z.object({ assetIds: z.array(z.string().min(1)).min(1) });
 
 export async function POST(request: Request, context: { params: Promise<{ id: string; batchId: string }> }) {
