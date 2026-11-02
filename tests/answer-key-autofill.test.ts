@@ -18,6 +18,9 @@ describe("solucionario generado desde la IA", () => {
   it("asigna sección abierta o test según el tipo de pregunta", () => {
     expect(sectionForQuestion(question({ type: "essay" }))).toBe("open");
     expect(sectionForQuestion(question({ type: "short_text" }))).toBe("open");
+    expect(sectionForQuestion(question({ type: "calculation" }))).toBe("open");
+    expect(sectionForQuestion(question({ type: "drawing" }))).toBe("open");
+    expect(sectionForQuestion(question({ type: "mixed" }))).toBe("open");
     expect(sectionForQuestion(question({ type: "single_choice" }))).toBe("test");
   });
 

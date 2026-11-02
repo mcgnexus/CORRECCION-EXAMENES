@@ -16,7 +16,7 @@ function selectedLabels(decision: Decision | undefined) {
   return [];
 }
 
-function isOpen(question: Question) { return question.type === "short_text" || question.type === "essay"; }
+function isOpen(question: Question) { return !["single_choice", "multiple_choice"].includes(question.type); }
 
 export default function AnswerKeyPage() {
   const params = useParams<{ id: string; revisionId: string }>();
@@ -107,7 +107,7 @@ export default function AnswerKeyPage() {
       <header className="topbar"><a className="eyebrow" href={`/exams/${params.id}`}>Volver al examen</a><span className="status">Solucionario</span></header>
       <section>
         <h1>Resolución del examen.</h1>
-        <p className="intro">La IA lee el examen y propone una respuesta por pregunta con dos proveedores. Revisa, corrige si hace falta y aprueba: la corrección de los alumnos usará esta resolución.</p>
+        <p className="intro">DeepSeek lee el examen y propone una respuesta por pregunta. Revisa, corrige si hace falta y aprueba: la corrección de los alumnos usará esta resolución.</p>
         {message ? <p className="notice" role="status">{message}</p> : null}
         {!data ? <p className="intro">Cargando...</p> : <>
           {data.questions.length === 0 ? <div className="notice" role="status">

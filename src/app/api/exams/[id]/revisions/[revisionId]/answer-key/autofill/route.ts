@@ -29,12 +29,14 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     if (solutions.length === 0) throw new AppError("SOLUTIONS_REQUIRED", "Todavía no hay soluciones de la IA para este examen.", 409);
 
     let answerKey = revision.value.answerKeyRevisionId ? await getAnswerKeyRepository().get(ownerId, params.id, revision.value.answerKeyRevisionId) : null;
+    let expectedEtag = input.expectedEtag ?? answerKey?.etag;
     if (!answerKey) {
+      if (input.expectedEtag && input.expectedEtag !== revision.etag) throw new AppError("ETAG_CONFLICT", "La revisión cambió antes de generar el solucionario.", 409);
       const created = await getAnswerKeyRepository().create(ownerId, params.id, params.revisionId);
       await getExamRevisionRepository().update(ownerId, params.id, params.revisionId, revision.etag, { answerKeyRevisionId: created.answerKey.answerKeyRevisionId, status: "key_review" });
       answerKey = { value: created.answerKey, etag: created.etag };
+      expectedEtag = created.etag;
     }
-    const expectedEtag = input.expectedEtag ?? answerKey.etag;
 
     const decisions: Record<string, z.infer<typeof questionDecisionSchema>> = {};
     const blockingIssues: string[] = [];
@@ -80,7 +82,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     }
     if (Object.keys(decisions).length === 0) throw new AppError("NO_DECISIONS", "No se pudo generar ninguna respuesta del solucionario.", 409);
 
-    const updated = await getAnswerKeyRepository().update(ownerId, params.id, answerKey.value.answerKeyRevisionId, expectedEtag, { status: "review", decisions, blockingIssues });
+    const updated = await getAnswerKeyRepository().update(ownerId, params.id, answerKey.value.answerKeyRevisionId, expectedEtag ?? answerKey.etag, { status: "review", decisions, blockingIssues });
     return Response.json({ data: updated.answerKey, requestId }, { headers: { "x-request-id": requestId, etag: updated.etag } });
   } catch (error) {
     return errorResponse(error, requestId);

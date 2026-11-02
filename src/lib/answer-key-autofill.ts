@@ -1,7 +1,7 @@
 import type { Rubric } from "@/domain/schemas";
 import type { SolutionProposal, StructureProposal } from "@/domain/phase2-schemas";
 
-const OPEN_TYPES = new Set(["short_text", "essay"]);
+const OPEN_TYPES = new Set(["short_text", "essay", "calculation", "drawing", "mixed"]);
 
 export function sectionForQuestion(question: StructureProposal["questions"][number]) {
   return OPEN_TYPES.has(question.type) ? "open" : "test";
