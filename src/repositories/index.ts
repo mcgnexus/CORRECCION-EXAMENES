@@ -6,6 +6,7 @@ import { AuditRepository } from "./audit-repository";
 import { AssetRepository } from "./asset-repository";
 import { DocumentPagesRepository } from "./document-pages-repository";
 import { AnswerKeyRepository, ExamRevisionRepository, ProviderRunRepository, SolutionProposalRepository, StructureProposalRepository } from "./phase2-repository";
+import { BatchRepository, ManualDecisionRepository, OmrReadingRepository, OmrTemplateRepository, ScoreSnapshotRepository, SubmissionRepository } from "./phase3-repository";
 
 export function getExamRepository() {
   return new ExamRepository(getBlobStore());
@@ -36,3 +37,9 @@ export function getStructureProposalRepository() { return new StructureProposalR
 export function getSolutionProposalRepository() { return new SolutionProposalRepository(getBlobStore()); }
 export function getAnswerKeyRepository() { return new AnswerKeyRepository(getBlobStore()); }
 export function getProviderRunRepository() { return new ProviderRunRepository(getBlobStore()); }
+export function getOmrTemplateRepository() { return new OmrTemplateRepository(getBlobStore()); }
+export function getBatchRepository() { return new BatchRepository(getBlobStore()); }
+export function getSubmissionRepository() { return new SubmissionRepository(getBlobStore()); }
+export function getOmrReadingRepository() { return new OmrReadingRepository(getBlobStore()); }
+export function getManualDecisionRepository() { return new ManualDecisionRepository(getBlobStore()); }
+export function getScoreSnapshotRepository() { return new ScoreSnapshotRepository(getBlobStore()); }
