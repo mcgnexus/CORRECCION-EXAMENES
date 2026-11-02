@@ -36,6 +36,8 @@ export default function OmrTemplatePage() {
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [templateId, setTemplateId] = useState<string | null>(null);
+  const [templateEtag, setTemplateEtag] = useState<string | null>(null);
+  const [templateState, setTemplateState] = useState<string | null>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
 
   const effectiveRotation = rotation + fineRotation;
@@ -169,7 +171,25 @@ export default function OmrTemplatePage() {
     setBusy(false);
     if (!response.ok || !payload.data) { setMessage(payload.error?.message ?? "No se pudo guardar la plantilla."); return; }
     setTemplateId(payload.data.templateId);
+    setTemplateEtag(response.headers.get("etag"));
+    setTemplateState("draft");
     setMessage("Plantilla guardada en borrador. Apruébala cuando la hayas probado.");
+  }
+
+  async function approveTemplate() {
+    if (!templateId || !templateEtag) return;
+    setBusy(true);
+    const response = await fetch(`/api/exams/${params.id}/omr-template/${templateId}`, {
+      method: "POST",
+      headers: { "content-type": "application/json", origin: window.location.origin },
+      body: JSON.stringify({ expectedEtag: templateEtag }),
+    });
+    const payload = await response.json() as { data?: { state: string }; error?: { message?: string } };
+    setBusy(false);
+    if (!response.ok || !payload.data) { setMessage(payload.error?.message ?? "No se pudo aprobar la plantilla."); return; }
+    setTemplateState(payload.data.state);
+    setTemplateEtag(response.headers.get("etag") ?? templateEtag);
+    setMessage("Plantilla aprobada. Ya puedes crear el lote de corrección.");
   }
 
   const drawRectified = useCallback(() => {
@@ -207,7 +227,7 @@ export default function OmrTemplatePage() {
         <h1>Calibrar la hoja de respuestas.</h1>
         <p className="intro">Sube una foto de la hoja en blanco, ajusta rotación, brillo y contraste hasta que se detecten las 4 anclas y la rejilla. Fija anclas con clic si la detección falla.</p>
         {message ? <p className="notice" role="status">{message}</p> : null}
-        {templateId ? <p className="notice">Plantilla creada: {templateId}</p> : null}
+        {templateId ? <p className="notice">Plantilla: {templateId} — estado: {templateState ?? "desconocido"}</p> : null}
         <div className="form">
           <label className="label">Foto de la hoja en blanco<input className="input" type="file" accept="image/jpeg,image/png,image/webp" onChange={handleFile} /></label>
           <div className="calibration-grid">
@@ -223,6 +243,7 @@ export default function OmrTemplatePage() {
             <button className="button" type="button" disabled={!imageBase64 || busy} onClick={analyze}>{busy ? "Analizando..." : "Analizar hoja"}</button>
             <button className="button secondary" type="button" disabled={!result || manualAnchors.length === 0} onClick={() => { setManualAnchors([]); setNextAnchor(0); }}>Reiniciar anclas</button>
             <button className="button" type="button" disabled={busy || !result} onClick={saveTemplate}>Guardar plantilla</button>
+            <button className="button secondary" type="button" disabled={busy || !templateId || templateState === "approved"} onClick={approveTemplate}>{templateState === "approved" ? "Plantilla aprobada" : "Aprobar plantilla"}</button>
           </div>
         </div>
         {result?.processedImage ? (
