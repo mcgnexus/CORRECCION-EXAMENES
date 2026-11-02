@@ -38,6 +38,8 @@ describe("Fase 5 exportaciones", () => {
     expect(current).not.toBeNull();
     await repository.markDeleted("owner-1", created.manifest.exportId, current!.etag);
     expect((await repository.getWithMeta("owner-1", created.manifest.exportId))?.manifest.state).toBe("deleted");
+    await repository.deleteManifest(created.manifest);
+    expect(await repository.getWithMeta("owner-1", created.manifest.exportId)).toBeNull();
   });
 
   it("genera PDF definitivo sin incluir raw provider output", async () => {

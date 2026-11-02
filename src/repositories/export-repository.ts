@@ -101,6 +101,10 @@ export class ExportRepository {
   async deleteContent(manifest: Pick<ExportManifest, "ownerId" | "exportId" | "blobPath">) {
     await this.blobs.delete(manifest.blobPath);
   }
+
+  async deleteManifest(manifest: Pick<ExportManifest, "ownerId" | "exportId">) {
+    await this.blobs.delete(manifestPath(manifest.ownerId, manifest.exportId));
+  }
 }
 
 export type ExportAsset = Asset & Pick<ExportManifest, "exportId" | "batchId" | "snapshotRefs" | "revisionRefs" | "format" | "expiresAt">;

@@ -148,7 +148,7 @@ async function cleanupOutputs(input: ExportClosedBatchInput, status: "cancelled"
     const output = await exports.getWithMeta(input.ownerId, outputId);
     if (!output) continue;
     await exports.deleteContent(output.manifest);
-    await exports.markDeleted(input.ownerId, outputId, output.etag).catch(() => undefined);
+    await exports.markDeleted(input.ownerId, outputId, output.etag).then(() => exports.deleteManifest(output.manifest)).catch(() => undefined);
   }
   const refreshed = await jobs.getWithMeta(input.ownerId, input.jobId);
   if (refreshed) await jobs.updateWithMeta(input.ownerId, input.jobId, refreshed.etag, { status, phase: status, step: status, errorCode, retryable: status === "failed", outputRefs: [], progress: { phase: status, current: 0, completed: 0, total: refreshed.job.progress.total, percent: status === "cancelled" ? 0 : refreshed.job.progress.percent } });

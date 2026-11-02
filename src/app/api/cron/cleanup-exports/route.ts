@@ -34,6 +34,7 @@ async function cleanup(request: Request) {
       try {
         await repository.deleteContent(item.manifest);
         await repository.markDeleted(item.manifest.ownerId, item.manifest.exportId, item.etag);
+        await repository.deleteManifest(item.manifest);
         deleted.push(item.manifest.exportId);
       } catch (error) {
         errors.push({ exportId: item.manifest.exportId, code: error instanceof AppError ? error.code : "CLEANUP_FAILED" });
