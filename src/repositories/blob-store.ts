@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { del, get, list, put } from "@vercel/blob";
+import { BlobAccessError, BlobContentTypeNotAllowedError, BlobError, BlobFileTooLargeError, BlobNotFoundError, BlobPreconditionFailedError, BlobServiceNotAvailable, BlobServiceRateLimited, del, get, list, put } from "@vercel/blob";
 import { AppError } from "../lib/errors";
 
 export type StoredObject = { path: string; body: Uint8Array; contentType: string; etag: string };
@@ -17,6 +17,22 @@ function etagFor(body: Uint8Array) {
 
 export function toStrongEtag(etag: string) {
   return etag.replace(/^W\//, "");
+}
+
+function mapBlobError(error: unknown, conditional?: "ifMatch" | "ifNoneMatch"): never {
+  if (error instanceof AppError) throw error;
+  if (error instanceof BlobPreconditionFailedError) {
+    if (conditional === "ifNoneMatch") throw new AppError("OBJECT_EXISTS", "El objeto ya existe.", 409);
+    throw new AppError("ETAG_CONFLICT", "El objeto ha cambiado.", 409, true);
+  }
+  if (error instanceof BlobNotFoundError) throw new AppError("NOT_FOUND", "El objeto no existe.", 404);
+  if (error instanceof BlobServiceRateLimited) throw new AppError("BLOB_RATE_LIMITED", "El almacenamiento ha limitado la petición.", 503, true);
+  if (error instanceof BlobServiceNotAvailable) throw new AppError("BLOB_UNAVAILABLE", "El almacenamiento no está disponible.", 503, true);
+  if (error instanceof BlobAccessError) throw new AppError("BLOB_ACCESS_DENIED", "Sin acceso al almacenamiento privado.", 403);
+  if (error instanceof BlobContentTypeNotAllowedError) throw new AppError("BLOB_CONTENT_TYPE_NOT_ALLOWED", "Tipo de contenido no permitido.", 400);
+  if (error instanceof BlobFileTooLargeError) throw new AppError("BLOB_FILE_TOO_LARGE", "El objeto supera el tamaño permitido.", 413);
+  if (error instanceof BlobError) throw new AppError("BLOB_ERROR", "El almacenamiento rechazó la operación.", 502, true);
+  throw error;
 }
 
 export class MemoryBlobStore implements BlobStore {
@@ -60,30 +76,48 @@ export class VercelPrivateBlobStore implements BlobStore {
 
   async put(path: string, body: Uint8Array, contentType: string, options: { ifMatch?: string; ifNoneMatch?: boolean } = {}) {
     const ifMatch = options.ifMatch ? toStrongEtag(options.ifMatch) : undefined;
-    const result = await put(path, Buffer.from(body), { ...this.auth(), access: "private", contentType, ...(ifMatch ? { ifMatch } : {}), allowOverwrite: Boolean(ifMatch) });
-    return { path: result.pathname, body: new Uint8Array(body), contentType: result.contentType, etag: toStrongEtag(result.etag) };
+    try {
+      const result = await put(path, Buffer.from(body), { ...this.auth(), access: "private", contentType, ...(ifMatch ? { ifMatch } : {}), allowOverwrite: Boolean(ifMatch) });
+      return { path: result.pathname, body: new Uint8Array(body), contentType: result.contentType, etag: toStrongEtag(result.etag) };
+    } catch (error) {
+      mapBlobError(error, ifMatch ? "ifMatch" : options.ifNoneMatch ? "ifNoneMatch" : undefined);
+    }
   }
 
   async get(path: string) {
-    const result = await get(path, { ...this.auth(), access: "private", useCache: false });
-    if (!result || result.statusCode !== 200) return null;
-    const body = new Uint8Array(await new Response(result.stream).arrayBuffer());
-    return { path: result.blob.pathname, body, contentType: result.blob.contentType, etag: toStrongEtag(result.blob.etag) };
+    try {
+      const result = await get(path, { ...this.auth(), access: "private", useCache: false });
+      if (!result || result.statusCode !== 200) return null;
+      const body = new Uint8Array(await new Response(result.stream).arrayBuffer());
+      return { path: result.blob.pathname, body, contentType: result.blob.contentType, etag: toStrongEtag(result.blob.etag) };
+    } catch (error) {
+      if (error instanceof BlobNotFoundError) return null;
+      mapBlobError(error);
+    }
   }
 
   async list(prefix: string) {
     const paths: string[] = [];
     let cursor: string | undefined;
-    do {
-      const result = await list({ ...this.auth(), prefix, limit: 1000, ...(cursor ? { cursor } : {}) });
-      paths.push(...result.blobs.map((blob) => blob.pathname));
-      cursor = result.hasMore ? result.cursor : undefined;
-    } while (cursor);
-    return paths;
+    try {
+      do {
+        const result = await list({ ...this.auth(), prefix, limit: 1000, ...(cursor ? { cursor } : {}) });
+        paths.push(...result.blobs.map((blob) => blob.pathname));
+        cursor = result.hasMore ? result.cursor : undefined;
+      } while (cursor);
+      return paths;
+    } catch (error) {
+      mapBlobError(error);
+    }
   }
 
   async delete(path: string) {
-    await del(path, this.auth());
+    try {
+      await del(path, this.auth());
+    } catch (error) {
+      if (error instanceof BlobNotFoundError) return;
+      mapBlobError(error);
+    }
   }
 }
 

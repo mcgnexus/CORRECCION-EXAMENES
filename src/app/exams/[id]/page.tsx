@@ -79,7 +79,11 @@ export default function ExamDetailPage() {
   async function savePages() {
     const response = await fetch(`/api/exams/${examId}/pages`, { method: "PATCH", headers: { "content-type": "application/json", "origin": window.location.origin }, body: JSON.stringify({ expectedEtag: manifest.etag, pages: manifest.pages, groups: manifest.groups }) });
     const payload = await response.json() as { data?: Omit<Manifest, "etag">; error?: { message?: string } };
-    if (!response.ok) { setMessage(payload.error?.message ?? "No se pudieron guardar las páginas."); return; }
+    if (!response.ok) {
+      setMessage(response.status === 409 ? "Las páginas cambiaron en otra pestaña o proceso. Se han recargado." : payload.error?.message ?? "No se pudieron guardar las páginas.");
+      if (response.status === 409) await load();
+      return;
+    }
     setManifest({ pages: payload.data?.pages ?? [], groups: payload.data?.groups ?? [], etag: response.headers.get("etag") ?? manifest.etag });
     setMessage("Cambios guardados.");
   }

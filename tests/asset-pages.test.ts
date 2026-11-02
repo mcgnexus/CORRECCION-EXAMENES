@@ -32,6 +32,16 @@ describe("assets y páginas", () => {
     expect(replay.assetId).toBe(asset.assetId);
   });
 
+  it("inicializa el manifiesto una sola vez aunque lleguen peticiones concurrentes", async () => {
+    const store = new MemoryBlobStore();
+    const pages = new DocumentPagesRepository(store);
+    const [first, second] = await Promise.all([pages.initialize("owner-1", "exam-1"), pages.initialize("owner-1", "exam-1")]);
+    expect(first.etag).toBe(second.etag);
+    const stored = await pages.getWithMeta("owner-1", "exam-1");
+    expect(stored?.manifest.pages).toHaveLength(0);
+    expect((await store.list("owners/owner-1/exams/exam-1/pages/")).length).toBe(1);
+  });
+
   it("rechaza una actualización con ETag obsoleto", async () => {
     const store = new MemoryBlobStore();
     const assets = new AssetRepository(store);

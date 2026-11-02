@@ -38,8 +38,17 @@ export class DocumentPagesRepository {
     const existing = await this.getWithMeta(ownerId, examId);
     if (existing) return existing;
     const manifest = documentPagesManifestSchema.parse({ schemaVersion: 1, ownerId, examId, pages: [], groups: [], updatedAt: new Date().toISOString() });
-    const stored = await this.blobs.put(pathFor(ownerId, examId), encode(manifest), "application/json", { ifNoneMatch: true });
-    return { manifest, etag: stored.etag };
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        const stored = await this.blobs.put(pathFor(ownerId, examId), encode(manifest), "application/json", { ifNoneMatch: true });
+        return { manifest, etag: stored.etag };
+      } catch (error) {
+        if (!(error instanceof AppError) || error.code !== "OBJECT_EXISTS") throw error;
+        const created = await this.getWithMeta(ownerId, examId);
+        if (created) return created;
+      }
+    }
+    throw new AppError("PAGE_MANIFEST_CONFLICT", "No se pudo inicializar el manifiesto de páginas.", 409, true);
   }
 
   async replace(ownerId: string, examId: string, expectedEtag: string, pages: DocumentPage[], groups: DocumentGroup[]) {
