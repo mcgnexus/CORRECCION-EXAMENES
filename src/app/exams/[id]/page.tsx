@@ -44,12 +44,32 @@ export default function ExamDetailPage() {
   useEffect(() => {
     if (!autopilot || !["queued", "running"].includes(autopilot.status)) return;
     const timer = window.setInterval(async () => {
-      const response = await fetch(`/api/phase0/workflow/${autopilot.runId}`);
-      const payload = await response.json() as { data?: { status?: string; output?: { revisionId?: string } }; error?: { message?: string } };
-      const status = payload.data?.status ?? "failed";
-      setAutopilot((current) => current ? { ...current, status } : current);
-      if (status === "completed") window.location.href = `/exams/${examId}/revisions/${payload.data?.output?.revisionId ?? autopilot.revisionId}/answer-key`;
-       if (status === "failed") setMessage("La revisión anterior quedó marcada como obsoleta. Puedes reintentar para generar una revisión nueva.");
+      try {
+        const url = new URL(`/api/phase0/workflow/${autopilot.runId}`, window.location.origin);
+        url.searchParams.set("examId", examId);
+        url.searchParams.set("revisionId", autopilot.revisionId);
+        const response = await fetch(url);
+        const payload = await response.json() as {
+          data?: { status?: string; output?: { revisionId?: string }; progress?: { phase: string; completed?: number; total?: number } };
+          error?: { message?: string };
+        };
+        if (!response.ok || !payload.data?.status) {
+          setMessage(payload.error?.message ?? "No se pudo consultar el progreso. Seguimos comprobando la ejecución.");
+          return;
+        }
+        const status = payload.data.status;
+        setAutopilot((current) => current ? { ...current, status } : current);
+        if (status === "completed") window.location.href = `/exams/${examId}/revisions/${payload.data.output?.revisionId ?? autopilot.revisionId}/answer-key`;
+        else if (["failed", "cancelled"].includes(status)) setMessage("La ejecución terminó antes de completar la revisión. Puedes iniciar una ejecución nueva.");
+        else if (payload.data.progress) {
+          const { phase, completed, total } = payload.data.progress;
+          if (phase === "preparing") setMessage("Preparando las páginas para la lectura con IA…");
+          else if (phase === "reading_pages") setMessage(`Leyendo páginas con IA: ${completed ?? 0}/${total ?? "?"}.`);
+          else if (phase === "solving_questions") setMessage(`Resolviendo preguntas: ${completed ?? 0}/${total ?? "?"}.`);
+        }
+      } catch {
+        setMessage("No se pudo consultar el progreso por un problema de conexión. Seguimos comprobando la ejecución.");
+      }
     }, 3000);
     return () => window.clearInterval(timer);
   }, [autopilot, examId]);

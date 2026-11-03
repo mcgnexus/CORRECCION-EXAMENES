@@ -10,6 +10,7 @@ import { getBlobStore } from "@/repositories/blob-store";
 
 type PageInput = { pageId: string; pageNumber: number; mimeType: string; text: string; imageBase64: string };
 type StructureInput = { ownerId: string; examId: string; revisionId: string };
+const AUTOPILOT_CONCURRENCY = 3;
 
 function hashInput(pages: PageInput[]) {
   return createHash("sha256").update(JSON.stringify(pages.map(({ pageId, pageNumber, mimeType, text, imageBase64 }) => ({ pageId, pageNumber, mimeType, text, imageHash: createHash("sha256").update(imageBase64).digest("hex") })))).digest("hex");
@@ -271,13 +272,13 @@ async function markAutopilotFailed(input: StructureInput) {
   }
 }
 
-async function touchAutopilotProgress(input: StructureInput, phase: string) {
+async function touchAutopilotProgress(input: StructureInput, phase: string, completed = 0, total = 0) {
   "use step";
   try {
     const blobs = getBlobStore();
     const path = autopilotProgressPath(input.ownerId, input.examId, input.revisionId);
     const current = await blobs.get(path);
-    const body = new TextEncoder().encode(JSON.stringify({ schemaVersion: 1, updatedAt: new Date().toISOString(), phase }));
+    const body = new TextEncoder().encode(JSON.stringify({ schemaVersion: 1, updatedAt: new Date().toISOString(), phase, completed, total }));
     await blobs.put(path, body, "application/json", current ? { ifMatch: current.etag } : { ifNoneMatch: true });
   } catch {
     // El marcador de progreso es mejor esfuerzo; nunca debe interrumpir el workflow.
@@ -287,12 +288,17 @@ async function touchAutopilotProgress(input: StructureInput, phase: string) {
 export async function examAutopilotWorkflow(input: StructureInput) {
   "use workflow";
   try {
+  await touchAutopilotProgress(input, "preparing");
   const pages = await loadPages(input);
-  await touchAutopilotProgress(input, "pages");
   const outcomes: Array<{ provider: "gemini" | "deepseek"; model: string; output?: z.infer<typeof structureModelOutputSchema>; error?: string }> = [];
-  for (const page of pages) {
-    try { outcomes.push({ provider: "deepseek", model: process.env.DEEPSEEK_REVIEW_MODEL ?? "unknown", output: await runDeepSeekStructure(input, page) }); } catch (error) { outcomes.push({ provider: "deepseek", model: process.env.DEEPSEEK_REVIEW_MODEL ?? "unknown", error: error instanceof ProviderError ? error.code : "DEEPSEEK_STRUCTURE_FAILED" }); }
-    await touchAutopilotProgress(input, "structure");
+  for (let offset = 0; offset < pages.length; offset += AUTOPILOT_CONCURRENCY) {
+    const pageBatch = pages.slice(offset, offset + AUTOPILOT_CONCURRENCY);
+    const batchOutcomes = await Promise.all(pageBatch.map(async (page) => {
+      try { return { provider: "deepseek" as const, model: process.env.DEEPSEEK_REVIEW_MODEL ?? "unknown", output: await runDeepSeekStructure(input, page) }; }
+      catch (error) { return { provider: "deepseek" as const, model: process.env.DEEPSEEK_REVIEW_MODEL ?? "unknown", error: error instanceof ProviderError ? error.code : "DEEPSEEK_STRUCTURE_FAILED" }; }
+    }));
+    outcomes.push(...batchOutcomes);
+    await touchAutopilotProgress(input, "reading_pages", Math.min(offset + pageBatch.length, pages.length), pages.length);
   }
   const persisted = await persistStructure(input, pages, outcomes);
   await markExamState(input, "structure_review");
@@ -302,11 +308,17 @@ export async function examAutopilotWorkflow(input: StructureInput) {
   const proposal = await loadStructure(solveInput);
   const solvePages = await loadPages(input);
   const outputs: Array<{ questionId: string; provider: "gemini" | "deepseek"; model: string; output?: z.infer<typeof solutionModelOutputSchema>; error?: string }> = [];
-  for (const question of proposal.questions) {
-    const page = solvePages.filter((candidate) => question.pageIds.includes(candidate.pageId));
-    if (page.length === 0) throw new ProviderError("QUESTION_PAGES_NOT_FOUND", "No hay páginas para la pregunta.", false);
-    try { outputs.push({ questionId: question.questionId, provider: "deepseek", model: process.env.DEEPSEEK_REVIEW_MODEL ?? "unknown", output: await solveQuestionWithDeepSeek(question, page) }); } catch (error) { outputs.push({ questionId: question.questionId, provider: "deepseek", model: process.env.DEEPSEEK_REVIEW_MODEL ?? "unknown", error: error instanceof ProviderError ? error.code : "DEEPSEEK_SOLUTION_FAILED" }); }
-    await touchAutopilotProgress(input, "solving");
+  await touchAutopilotProgress(input, "solving_questions", 0, proposal.questions.length);
+  for (let offset = 0; offset < proposal.questions.length; offset += AUTOPILOT_CONCURRENCY) {
+    const questionBatch = proposal.questions.slice(offset, offset + AUTOPILOT_CONCURRENCY);
+    const batchOutputs = await Promise.all(questionBatch.map(async (question) => {
+      const page = solvePages.filter((candidate) => question.pageIds.includes(candidate.pageId));
+      if (page.length === 0) throw new ProviderError("QUESTION_PAGES_NOT_FOUND", "No hay páginas para la pregunta.", false);
+      try { return { questionId: question.questionId, provider: "deepseek" as const, model: process.env.DEEPSEEK_REVIEW_MODEL ?? "unknown", output: await solveQuestionWithDeepSeek(question, page) }; }
+      catch (error) { return { questionId: question.questionId, provider: "deepseek" as const, model: process.env.DEEPSEEK_REVIEW_MODEL ?? "unknown", error: error instanceof ProviderError ? error.code : "DEEPSEEK_SOLUTION_FAILED" }; }
+    }));
+    outputs.push(...batchOutputs);
+    await touchAutopilotProgress(input, "solving_questions", Math.min(offset + questionBatch.length, proposal.questions.length), proposal.questions.length);
   }
   const solved = await persistSolutions(solveInput, proposal, solvePages, outputs);
   await markExamState(input, "key_review");

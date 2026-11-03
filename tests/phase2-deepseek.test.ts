@@ -114,6 +114,8 @@ describe("Fase 2 exclusivamente DeepSeek", () => {
     expect(update.mock.calls.map((call) => call[3].state)).toEqual(["structure_review", "solving", "key_review"]);
     expect((await revisions.get(input.ownerId, input.examId, input.revisionId))?.value.status).toBe("key_review");
     expect((await solutions.list(input.ownerId, input.revisionId)).every(({ value }) => value.provider === "deepseek" && value.reviewScope === "text_only")).toBe(true);
+    const progress = await blobs.get("progress.json");
+    expect(JSON.parse(new TextDecoder().decode(progress?.body))).toMatchObject({ phase: "solving_questions", completed: 2, total: 2 });
   });
 
   it("conserva IDs de figuras y envia imagenes solo con vision verificada", async () => {
