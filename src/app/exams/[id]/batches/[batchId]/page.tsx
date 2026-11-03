@@ -26,6 +26,7 @@ export default function BatchPage() {
   const [pages, setPages] = useState<Page[]>([]);
   const [responseData, setResponseData] = useState<ResponseData | null>(null);
   const [answerKeyRevisionId, setAnswerKeyRevisionId] = useState("");
+  const [openPending, setOpenPending] = useState(0);
   const [regionEtag, setRegionEtag] = useState("");
   const [regionPageId, setRegionPageId] = useState("");
   const [regionQuestionId, setRegionQuestionId] = useState("");
@@ -131,9 +132,10 @@ export default function BatchPage() {
     const batchesPayload = await batchesResponse.json() as { data?: Array<{ batchId: string; answerKeyRevisionId: string }> };
     setAnswerKeyRevisionId(batchesPayload.data?.find((batch) => batch.batchId === params.batchId)?.answerKeyRevisionId ?? "");
     const response = await fetch(`${base}/${submission.submissionId}`);
-    const payload = await response.json() as { data?: { readings?: Reading[] }; error?: { message?: string } };
+    const payload = await response.json() as { data?: { readings?: Reading[]; snapshot?: { openPending?: number } | null }; error?: { message?: string } };
     if (!response.ok) { setMessage(payload.error?.message ?? "No se pudo cargar la lectura."); return; }
     setReading(payload.data?.readings?.[0] ?? null);
+    setOpenPending(payload.data?.snapshot?.openPending ?? 0);
     await loadResponses(submission.submissionId);
     setMessage(null);
   }
@@ -386,7 +388,7 @@ export default function BatchPage() {
                 </div>
               </> : null}
               <p className="intro">Las filas ambiguas, dobles o ilegibles requieren decisión en la cola de revisión antes de puntuar.</p>
-              <section className="panel">
+              {(openPending > 0 || selected.responseBlockingIssues?.some((issue) => issue.startsWith("open_"))) ? <section className="panel">
                 <h3>Respuestas abiertas</h3>
                 <p className="intro">Delimita una región por pregunta. El recorte se genera de forma privada en el servidor.</p>
                 <div className="form"><input className="input" placeholder="ID de pregunta" value={regionQuestionId} onChange={(event) => setRegionQuestionId(event.target.value)} /><select className="input" value={regionQuestionType} onChange={(event) => setRegionQuestionType(event.target.value as "short_text" | "essay")}><option value="short_text">short_text</option><option value="essay">essay</option></select><select className="input" value={regionPageId} onChange={(event) => setRegionPageId(event.target.value)}>{pages.map((page) => <option value={page.pageId} key={page.pageId}>Página {page.pageNumber}</option>)}</select></div>
@@ -394,7 +396,7 @@ export default function BatchPage() {
                 <div className="actions"><button className="button secondary" type="button" disabled={busy || !regionQuestionId || !regionPageId} onClick={saveResponseRegion}>Guardar región</button><button className="button secondary" type="button" disabled={busy || !responseData?.regions} onClick={startTranscription}>Iniciar transcripción</button><button className="button secondary" type="button" disabled={busy} onClick={() => loadResponses()}>Actualizar respuestas</button><button className="button" type="button" disabled={busy || !answerKeyRevisionId} onClick={startEvaluation}>Iniciar evaluación</button></div>
                 {responseData?.transcriptions.map((transcription) => <article className="card" key={transcription.transcriptionId}><strong>{transcription.questionId} · transcripción {transcription.state}</strong><p>Literal: {transcription.literalText || "(vacía)"}</p><textarea className="input" rows={4} value={transcriptionEdits[transcription.transcriptionId] ?? transcription.correctedText ?? transcription.normalizedText ?? transcription.literalText} onChange={(event) => setTranscriptionEdits((current) => ({ ...current, [transcription.transcriptionId]: event.target.value }))} /><p>Confianza: {transcription.confidence}. {transcription.uncertainSpans.map((span) => span.text).join(", ")}</p>{transcription.state === "proposed" ? <button className="button secondary" type="button" disabled={busy} onClick={() => confirmTranscription(transcription)}>Confirmar/corregir transcripción</button> : null}</article>)}
                 {responseData?.evaluations.map((evaluation) => <article className="card" key={evaluation.evaluationId}><strong>{evaluation.questionId} · {evaluation.provider}</strong><p>{evaluation.totalPoints}/{evaluation.maximumPoints}: {evaluation.explanation}</p>{evaluation.state === "completed" ? <><div className="mini-form">{evaluation.criterionScores.map((criterion) => <label className="label" key={criterion.criterionId}>{criterion.criterionId}<input className="input" type="number" min="0" max={criterion.maxPoints} step=".01" value={manualPoints[evaluation.questionId]?.[criterion.criterionId] ?? criterion.points} onChange={(event) => setManualPoints((current) => ({ ...current, [evaluation.questionId]: { ...current[evaluation.questionId], [criterion.criterionId]: Number(event.target.value) } }))} /></label>)}</div><div className="actions"><button className="button secondary" type="button" disabled={busy} onClick={() => chooseEvaluation(evaluation)}>Elegir {evaluation.provider}</button><button className="button secondary" type="button" disabled={busy} onClick={() => saveManualDecision(evaluation)}>Guardar puntuación manual</button></div></> : null}</article>)}
-              </section>
+              </section> : null}
             </> : <p className="intro">Selecciona una entrega.</p>}
           </div>
         </div>

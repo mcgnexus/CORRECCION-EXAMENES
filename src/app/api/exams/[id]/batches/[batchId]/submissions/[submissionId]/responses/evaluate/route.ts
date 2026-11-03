@@ -5,7 +5,7 @@ import { AppError, errorResponse } from "@/lib/errors";
 import { getBatchRepository, getIdempotencyRepository, getSubmissionRepository, getAnswerKeyRepository } from "@/repositories";
 import { evaluateOpenResponsesWorkflow } from "@/workflows/phase4-workflows";
 
-const bodySchema = z.object({ expectedEtag: z.string().min(1), answerKeyRevisionId: z.string().min(1) });
+const bodySchema = z.object({ expectedEtag: z.string().min(1).optional(), answerKeyRevisionId: z.string().min(1) });
 
 export async function POST(request: Request, context: { params: Promise<{ id: string; batchId: string; submissionId: string }> }) {
   const requestId = crypto.randomUUID();
@@ -22,7 +22,10 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const batch = await getBatchRepository().get(ownerId, params.id, params.batchId);
     const answerKey = await getAnswerKeyRepository().get(ownerId, params.id, input.answerKeyRevisionId);
     if (!batch || !answerKey || answerKey.value.status !== "approved" || batch.value.answerKeyRevisionId !== input.answerKeyRevisionId) throw new AppError("ANSWER_KEY_STALE", "El solucionario no coincide con el lote o no está aprobado.", 409);
-    if (submission.etag !== input.expectedEtag) throw new AppError("ETAG_CONFLICT", "La entrega cambió en otro proceso.", 409);
+    const openQuestions = Object.values(answerKey.value.decisions).filter((decision) => Boolean(decision.sectionId)).length;
+    if (openQuestions === 0) {
+      return Response.json({ data: { skipped: true, openQuestions: 0, reason: "El solucionario no tiene preguntas abiertas; la evaluación no aplica." }, requestId }, { headers: { "x-request-id": requestId } });
+    }
     const outcome = await getIdempotencyRepository().execute(ownerId, "evaluate-open-responses", idempotencyKey, async () => {
       const started = await start(evaluateOpenResponsesWorkflow, [{ ownerId, examId: params.id, batchId: params.batchId, submissionId: params.submissionId, answerKeyRevisionId: input.answerKeyRevisionId }]);
       const current = await getSubmissionRepository().get(ownerId, params.batchId, params.submissionId);
