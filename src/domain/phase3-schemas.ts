@@ -106,7 +106,7 @@ export const omrRowResultSchema = z.object({
   candidateOptionIds: z.array(idSchema),
   metrics: z.array(z.object({ optionId: idSchema, fill: z.number().min(0).max(1) })),
   requiresHumanReview: z.boolean(),
-  flags: z.array(z.string()),
+  flags: z.array(z.string()).default([]),
 });
 
 export const omrReadingSchema = z.object({
