@@ -2,7 +2,7 @@
 
 import { upload } from "@vercel/blob/client";
 import { useParams } from "next/navigation";
-import { ChangeEvent, useCallback, useEffect, useState } from "react";
+import { ChangeEvent, useCallback, useEffect, useRef, useState } from "react";
 
 type Submission = { submissionId: string; state: string; pageIds: string[]; assetIds: string[]; suggestedIdentity?: string; identityConfidence?: number; confirmedIdentity?: string; readingIds: string[]; snapshotId?: string; responseBlockingIssues?: string[] };
 type ReadingRow = { questionId: string; status: string; selectedOptionIds: string[]; candidateOptionIds: string[]; requiresHumanReview: boolean };
@@ -47,13 +47,23 @@ export default function BatchPage() {
   const [batchJobEtag, setBatchJobEtag] = useState("");
   const [ownerId, setOwnerId] = useState("");
   const [uploadingStudents, setUploadingStudents] = useState(false);
+  const selectedIdRef = useRef<string | null>(null);
 
   const load = useCallback(async () => {
     const response = await fetch(base);
     const payload = await response.json() as { data?: Submission[]; error?: { message?: string } };
     if (!response.ok || !payload.data) throw new Error(payload.error?.message ?? "No se pudo cargar el lote.");
     setSubmissions(payload.data);
-    setSelected((current) => current ? payload.data!.find((submission) => submission.submissionId === current.submissionId) ?? null : null);
+    const fresh = payload.data.find((submission) => submission.submissionId === selectedIdRef.current) ?? null;
+    setSelected(fresh);
+    if (fresh) {
+      const detailResponse = await fetch(`${base}/${fresh.submissionId}`);
+      const detailPayload = await detailResponse.json() as { data?: { readings?: Reading[] }; error?: { message?: string } };
+      if (detailResponse.ok) setReading(detailPayload.data?.readings?.[0] ?? null);
+    } else {
+      setSelected(null);
+      setReading(null);
+    }
     const batchResponse = await fetch(`/api/exams/${params.id}/batches/${params.batchId}`);
     const batchPayload = await batchResponse.json() as { data?: Batch; error?: { message?: string } };
     if (batchResponse.ok && batchPayload.data) { setBatch(batchPayload.data); setBatchEtag(batchResponse.headers.get("etag") ?? ""); }
@@ -109,6 +119,7 @@ export default function BatchPage() {
   }, [batchJob, batchJobEtag, load]);
 
   async function openSubmission(submission: Submission) {
+    selectedIdRef.current = submission.submissionId;
     setSelected(submission);
     setIdentity(submission.confirmedIdentity ?? submission.suggestedIdentity ?? "");
     setReading(null);
@@ -140,9 +151,9 @@ export default function BatchPage() {
     if (!selected) return;
     setBusy(true);
     const response = await fetch(`${base}/${selected.submissionId}`, { method: "POST", headers: { "content-type": "application/json", origin: window.location.origin }, body: JSON.stringify(body) });
-    const payload = await response.json() as { data?: unknown; error?: { message?: string } };
+    const payload = await response.json() as { data?: unknown; error?: { code?: string; message?: string } };
     setBusy(false);
-    if (!response.ok) { setMessage(payload.error?.message ?? "La acción falló."); return; }
+    if (!response.ok) { setMessage(`${payload.error?.code ?? "ERROR"}: ${payload.error?.message ?? "La acción falló."}`); return; }
     setMessage("Acción completada.");
     await load();
     if (body.action === "score" && selected) {
@@ -353,7 +364,7 @@ export default function BatchPage() {
             <h2>Decisión</h2>
             {selected ? <>
               <label className="label">Identidad confirmada<input className="input" value={identity} onChange={(event) => setIdentity(event.target.value)} /></label>
-              <div className="actions"><button className="button secondary" type="button" disabled={busy || !identity} onClick={() => postAction({ action: "confirm-identity", identity })}>Confirmar identidad</button><button className="button" type="button" disabled={busy || (selected.state !== "review" && selected.state !== "review_scores")} onClick={() => postAction({ action: "score" })}>Puntuar entrega</button><button className="button" type="button" disabled={busy || !selected.snapshotId} onClick={closeSubmission}>Cerrar entrega</button></div>
+              <div className="actions"><button className="button secondary" type="button" disabled={busy || !identity} onClick={() => postAction({ action: "confirm-identity", identity })}>Confirmar identidad</button><button className="button" type="button" disabled={busy || (selected.state !== "review" && selected.state !== "review_scores") || !selected.confirmedIdentity} onClick={() => postAction({ action: "score" })}>Puntuar entrega</button><button className="button" type="button" disabled={busy || !selected.snapshotId} onClick={closeSubmission}>Cerrar entrega</button></div>
               {selected.snapshotId ? <p className="intro">Snapshot: {selected.snapshotId}</p> : null}
               {reading ? <>
                 <p className="intro">Lectura: {reading.readingId} ({reading.status})</p>
