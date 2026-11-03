@@ -56,6 +56,9 @@ export class DocumentPagesRepository {
     if (!current) throw new AppError("NOT_FOUND", "Manifiesto de páginas no encontrado.", 404);
     if (current.etag !== expectedEtag) throw new AppError("ETAG_CONFLICT", "Las páginas fueron modificadas por otro editor.", 409);
     validateReferences(ownerId, examId, pages, groups);
+    // Si el contenido es idéntico, no reescribir: preserva el ETag y evita
+    // invalidar la revisión IA (solucionario/plantilla) sin cambios reales.
+    if (JSON.stringify(current.manifest.pages) === JSON.stringify(pages) && JSON.stringify(current.manifest.groups) === JSON.stringify(groups)) return current;
     const manifest = documentPagesManifestSchema.parse({ schemaVersion: 1, ownerId, examId, pages, groups, updatedAt: new Date().toISOString() });
     const stored = await this.blobs.put(pathFor(ownerId, examId), encode(manifest), "application/json", { ifMatch: expectedEtag });
     return { manifest, etag: stored.etag };
