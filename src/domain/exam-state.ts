@@ -8,7 +8,7 @@ const transitions: Record<ExamState, readonly ExamState[]> = {
   extracting: ["structure_review", "draft"],
   structure_review: ["solving", "extracting", "draft"],
   solving: ["key_review", "extracting", "draft"],
-  key_review: ["approved"],
+  key_review: ["approved", "extracting"],
   approved: ["extracting"],
 };
 

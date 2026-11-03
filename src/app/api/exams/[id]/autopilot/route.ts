@@ -1,6 +1,7 @@
 import { getRun, start } from "workflow/api";
 import { assertSameOrigin, requireOwner } from "@/lib/auth";
 import { AppError, errorResponse } from "@/lib/errors";
+import { InvalidExamTransitionError } from "@/domain/exam-state";
 import { getDocumentPagesRepository, getExamRepository, getExamRevisionRepository, getIdempotencyRepository } from "@/repositories";
 import { getBlobStore } from "@/repositories/blob-store";
 import { examAutopilotWorkflow } from "@/workflows/phase2-workflows";
@@ -69,6 +70,10 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
           await exams.update(ownerId, examId, currentExam.etag, { activeRevisionId: revision.revision.examRevisionId, state: "extracting" });
           break;
         } catch (error) {
+          if (error instanceof InvalidExamTransitionError) {
+            const state = (await exams.get(ownerId, examId))?.state ?? "desconocido";
+            throw new AppError("EXAM_STATE_CONFLICT", `El examen está en estado «${state}» y no permite iniciar la lectura desde ahí. Revisa el solucionario pendiente o reintenta en unos instantes.`, 409, true);
+          }
           if (!(error instanceof AppError) || error.code !== "ETAG_CONFLICT" || attempt === 2) throw new AppError("AUTOPILOT_START_CONFLICT", "El examen cambió durante el inicio. Reintenta.", 409, true);
         }
       }
