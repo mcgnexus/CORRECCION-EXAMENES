@@ -1,6 +1,6 @@
 "use client";
 
-import { upload } from "@vercel/blob/client";
+import { uploadExamAsset } from "@/lib/supabase-upload-client";
 import { useParams } from "next/navigation";
 import { ChangeEvent, useCallback, useEffect, useMemo, useState } from "react";
 
@@ -66,8 +66,8 @@ export default function ExamDetailPage() {
       const pathname = `owners/${exam.ownerId}/exams/${exam.examId}/assets/${assetId}/original`;
       try {
         setProgress((current) => ({ ...current, [assetId]: 0 }));
-        const uploaded = await upload(pathname, file, { access: "private", contentType: file.type, handleUploadUrl: `/api/exams/${exam.examId}/assets/authorize`, onUploadProgress: ({ percentage }) => setProgress((current) => ({ ...current, [assetId]: percentage })) });
-        const completion = await fetch(`/api/exams/${exam.examId}/assets/complete`, { method: "POST", headers: { "content-type": "application/json", origin: window.location.origin }, body: JSON.stringify({ assetId, pathname: uploaded.pathname }) });
+        const uploaded = await uploadExamAsset({ pathname, file, authorizeUrl: `/api/exams/${exam.examId}/assets/authorize` });
+        const completion = await fetch(`/api/exams/${exam.examId}/assets/complete`, { method: "POST", headers: { "content-type": "application/json", origin: window.location.origin }, body: JSON.stringify({ assetId, pathname: uploaded.pathname, contentType: file.type }) });
         if (!completion.ok) throw new Error("La subida terminó, pero no pudo validarse el asset.");
         setProgress((current) => ({ ...current, [assetId]: 100 }));
       } catch (error) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { upload } from "@vercel/blob/client";
+import { uploadExamAsset } from "@/lib/supabase-upload-client";
 import { useParams } from "next/navigation";
 import { ChangeEvent, useCallback, useEffect, useRef, useState } from "react";
 
@@ -87,8 +87,8 @@ export default function BatchPage() {
       const assetId = crypto.randomUUID();
       const pathname = `owners/${ownerId}/exams/${params.id}/assets/${assetId}/original`;
       try {
-        const uploaded = await upload(pathname, file, { access: "private", contentType: file.type, handleUploadUrl: `/api/exams/${params.id}/assets/authorize` });
-        const completion = await fetch(`/api/exams/${params.id}/assets/complete`, { method: "POST", headers: { "content-type": "application/json", origin: window.location.origin }, body: JSON.stringify({ assetId, pathname: uploaded.pathname }) });
+        const uploaded = await uploadExamAsset({ pathname, file, authorizeUrl: `/api/exams/${params.id}/assets/authorize` });
+        const completion = await fetch(`/api/exams/${params.id}/assets/complete`, { method: "POST", headers: { "content-type": "application/json", origin: window.location.origin }, body: JSON.stringify({ assetId, pathname: uploaded.pathname, contentType: file.type }) });
         if (!completion.ok) throw new Error("La subida terminó, pero no pudo validarse el archivo.");
         const submission = await fetch(base, { method: "POST", headers: { "content-type": "application/json", origin: window.location.origin }, body: JSON.stringify({ assetIds: [assetId] }) });
         const submissionPayload = await submission.json() as { error?: { message?: string } };

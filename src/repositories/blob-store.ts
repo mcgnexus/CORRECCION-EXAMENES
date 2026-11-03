@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { BlobAccessError, BlobContentTypeNotAllowedError, BlobError, BlobFileTooLargeError, BlobNotFoundError, BlobPreconditionFailedError, BlobServiceNotAvailable, BlobServiceRateLimited, del, get, list, put } from "@vercel/blob";
 import { AppError } from "../lib/errors";
+import { SupabaseBlobStore } from "./supabase-blob-store";
 
 export type StoredObject = { path: string; body: Uint8Array; contentType: string; etag: string };
 
@@ -9,6 +10,8 @@ export interface BlobStore {
   get(path: string): Promise<StoredObject | null>;
   list(prefix: string): Promise<string[]>;
   delete(path: string): Promise<void>;
+  registerExternal?(path: string, contentType: string): Promise<{ path: string; contentType: string; etag: string }>;
+  createSignedUploadUrl?(path: string): Promise<{ bucket: string; path: string; token: string }>;
 }
 
 function etagFor(body: Uint8Array) {
@@ -125,11 +128,16 @@ let store: BlobStore | undefined;
 
 export function getBlobStore(): BlobStore {
   if (!store) {
-    store = process.env.BLOB_STORAGE_MODE === "memory"
-      ? new MemoryBlobStore()
-      : process.env.BLOB_READ_WRITE_TOKEN || (process.env.VERCEL_OIDC_TOKEN && process.env.BLOB_STORE_ID)
-        ? new VercelPrivateBlobStore()
-        : new UnavailablePrivateBlobStore();
+    const mode = process.env.BLOB_STORAGE_MODE;
+    if (mode === "memory") store = new MemoryBlobStore();
+    else if (mode === "supabase" || process.env.SUPABASE_OBJECT_STORE_ENABLED === "true") {
+      if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SECRET_KEY) {
+        throw new AppError("SUPABASE_NOT_CONFIGURED", "Faltan las credenciales de servidor de Supabase.", 503);
+      }
+      store = new SupabaseBlobStore();
+    } else if (process.env.BLOB_READ_WRITE_TOKEN || (process.env.VERCEL_OIDC_TOKEN && process.env.BLOB_STORE_ID)) {
+      store = new VercelPrivateBlobStore();
+    } else store = new UnavailablePrivateBlobStore();
   }
   return store;
 }

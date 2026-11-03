@@ -3,10 +3,14 @@ import { getBlobStore } from "@/repositories/blob-store";
 import { AppError } from "./errors";
 import { inspectUpload } from "./upload-validation";
 
-export async function completeUploadedAsset(input: { ownerId: string; examId: string; assetId: string; pathname: string }) {
+export async function completeUploadedAsset(input: { ownerId: string; examId: string; assetId: string; pathname: string; contentType?: string }) {
   const expectedPath = `owners/${input.ownerId}/exams/${input.examId}/assets/${input.assetId}/original`;
   if (input.pathname !== expectedPath) throw new AppError("INVALID_UPLOAD_PATH", "La ruta no pertenece al examen o propietario.", 400);
   const store = getBlobStore();
+  if (store.registerExternal) {
+    if (!input.contentType) throw new AppError("INVALID_UPLOAD_TYPE", "Falta el tipo del archivo subido.", 400);
+    await store.registerExternal(input.pathname, input.contentType);
+  }
   const stored = await store.get(input.pathname);
   if (!stored) throw new AppError("ASSET_NOT_FOUND", "El objeto subido no está disponible.", 404);
   try {
