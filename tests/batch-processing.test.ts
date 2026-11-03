@@ -61,7 +61,7 @@ describe("procesamiento batch sin red", () => {
     expect(state.readings[0].value.rows).toEqual(state.questions.map((q) => row(q.questionId)));
     expect(mocks.regions).not.toHaveBeenCalled();
     expect(mocks.evaluations).not.toHaveBeenCalled();
-    expect(state.submission.state).toBe("review");
+    expect(state.submission.state).toBe("scored");
   });
 
   it("persiste solo código HTTP seguro y reintenta la misma lectura failed en otra ejecución", async () => {

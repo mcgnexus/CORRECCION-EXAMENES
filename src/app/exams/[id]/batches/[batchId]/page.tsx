@@ -4,7 +4,7 @@ import { upload } from "@vercel/blob/client";
 import { useParams } from "next/navigation";
 import { ChangeEvent, useCallback, useEffect, useRef, useState } from "react";
 
-type Submission = { submissionId: string; state: string; pageIds: string[]; assetIds: string[]; suggestedIdentity?: string; identityConfidence?: number; confirmedIdentity?: string; readingIds: string[]; snapshotId?: string; responseBlockingIssues?: string[] };
+type Submission = { submissionId: string; state: string; pageIds: string[]; assetIds: string[]; suggestedIdentity?: string; identityConfidence?: number; identitySource?: string; confirmedIdentity?: string; readingIds: string[]; snapshotId?: string; responseBlockingIssues?: string[] };
 type ReadingRow = { questionId: string; status: string; selectedOptionIds: string[]; candidateOptionIds: string[]; requiresHumanReview: boolean };
 type Reading = { readingId: string; status: string; rows: ReadingRow[]; errorCode?: string };
 type Page = { pageId: string; sourceAssetId: string; pageNumber: number; rotation: 0 | 90 | 180 | 270 };
@@ -342,12 +342,19 @@ export default function BatchPage() {
     setMessage(response.ok ? `Procesamiento ${action === "cancel" ? "cancelado" : "reintentado"}.` : payload.error?.message ?? "No se pudo actualizar el procesamiento.");
   }
 
+  function stepOf(submission: Submission) {
+    if (submission.state === "closed") return "4 · Cerrada";
+    if (submission.state === "scored") return "3 · Puntuada · lista para cerrar";
+    if (submission.state === "review" || submission.state === "review_scores") return submission.confirmedIdentity ? "3 · Revisar y puntuar" : "2 · Confirmar identidad";
+    return "1 · Leyendo hoja (OMR + nombre)";
+  }
+
   return (
     <main className="shell">
       <header className="topbar"><a className="eyebrow" href={`/exams/${params.id}`}>Volver al examen</a><span className="status">Corrección de entregas</span></header>
       <section>
         <h1>Lote de corrección.</h1>
-        <p className="intro">Identidad confirmada, lectura OMR y decisión humana antes de puntuar. Las incidencias bloquean el cierre.</p>
+        <p className="intro">Flujo: 1) Procesar lote: la IA lee la matriz de respuestas y sugiere el nombre del alumno comparando con el solucionario aprobado. 2) Confirma el nombre sugerido. 3) Las entregas limpias se puntúan solas; revisa solo las incidencias. 4) Cierra cada entrega. 5) Finaliza el lote y exporta.</p>
         {message ? <p className="notice" role="status">{message}</p> : null}
         {batchJob?.status === "completed" && ((batchJob.progress.blockedSubmissions ?? 0) > 0 || (batchJob.progress.failedSubmissions ?? 0) > 0) ? <p className="notice" role="status">El procesamiento ha terminado con entregas pendientes de revisión. No significa que las respuestas estén corregidas ni que el lote pueda cerrarse.</p> : null}
         {submissions.some((submission) => submission.state !== "closed") ? <section className="panel" aria-label="Pasos pendientes para finalizar"><h2>Pendiente de cierre</h2><p>Primero procesa el lote. Después revisa y cierra cada entrega; solo entonces podrás finalizar.</p><ul>{submissions.filter((submission) => submission.state !== "closed").map((submission) => <li key={submission.submissionId}><button className="button secondary" type="button" onClick={() => openSubmission(submission)}>Revisar {submission.confirmedIdentity ?? submission.submissionId.slice(0, 8)}</button> Estado: {submission.state}. {!submission.confirmedIdentity ? "Falta confirmar la identidad. " : ""}{!submission.snapshotId ? "Falta puntuar la entrega. " : ""}{submission.responseBlockingIssues?.length ? `Incidencias: ${submission.responseBlockingIssues.join(", ")}` : ""}</li>)}</ul></section> : null}
@@ -357,13 +364,15 @@ export default function BatchPage() {
             <h2>Entregas</h2>
             <label className="label">Subir exámenes de alumnos (PDF o imagen)<input className="input" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" multiple disabled={uploadingStudents} onChange={uploadStudentExams} /></label>
             {uploadingStudents ? <p className="intro">Subiendo y registrando entregas...</p> : null}
-            <div className="page-list">{submissions.map((submission) => <div className={`page-row ${selected?.submissionId === submission.submissionId ? "selected" : ""}`} key={submission.submissionId} onClick={() => openSubmission(submission)}><span>#{submission.submissionId.slice(0, 8)}</span><span>{submission.confirmedIdentity ?? submission.suggestedIdentity ?? "sin identidad"}</span><span className="eyebrow">{submission.state}</span></div>)}</div>
+            <div className="page-list">{submissions.map((submission) => <div className={`page-row ${selected?.submissionId === submission.submissionId ? "selected" : ""}`} key={submission.submissionId} onClick={() => openSubmission(submission)}><span>#{submission.submissionId.slice(0, 8)}</span><span>{submission.confirmedIdentity ?? submission.suggestedIdentity ?? "sin identidad"}</span><span className="eyebrow">{stepOf(submission)}</span></div>)}</div>
             {selected ? <div className="actions"><button className="button secondary" type="button" disabled={busy} onClick={addSubmissionFromPageIds}>Registrar assets de nuevo</button><button className="button" type="button" disabled={busy} onClick={startOmr}>Iniciar lectura OMR</button></div> : null}
           </div>
           <div className="panel">
             <h2>Decisión</h2>
             {selected ? <>
               <label className="label">Identidad confirmada<input className="input" value={identity} onChange={(event) => setIdentity(event.target.value)} /></label>
+              {selected.suggestedIdentity && !selected.confirmedIdentity ? <p className="intro">Nombre leído por IA: «{selected.suggestedIdentity}» ({Math.round((selected.identityConfidence ?? 0) * 100)}% de confianza). Ya está en el campo: revisa la ortografía y pulsa Confirmar identidad.</p> : null}
+              {selected.identitySource === "identity_unreadable" && !selected.confirmedIdentity ? <p className="intro">No se pudo leer el nombre de forma automática: escríbelo y confirma.</p> : null}
               <div className="actions"><button className="button secondary" type="button" disabled={busy || !identity} onClick={() => postAction({ action: "confirm-identity", identity })}>Confirmar identidad</button><button className="button" type="button" disabled={busy || (selected.state !== "review" && selected.state !== "review_scores") || !selected.confirmedIdentity} onClick={() => postAction({ action: "score" })}>Puntuar entrega</button><button className="button" type="button" disabled={busy || !selected.snapshotId} onClick={closeSubmission}>Cerrar entrega</button></div>
               {selected.snapshotId ? <p className="intro">Snapshot: {selected.snapshotId}</p> : null}
               {reading ? <>
