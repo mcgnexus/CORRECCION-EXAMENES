@@ -90,7 +90,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       const answerKey = await getAnswerKeyRepository().get(ownerId, params.id, batch.value.answerKeyRevisionId);
       if (!answerKey || answerKey.value.status !== "approved") throw new AppError("ANSWER_KEY_STALE", "El solucionario debe estar aprobado.", 409);
       if (answerKey.value.scoringPolicyRevisionId !== batch.value.scoringPolicyRevisionId) throw new AppError("SCORING_POLICY_MISMATCH", "La política del lote no coincide con la del solucionario.", 409);
-      const openQuestionIds = Object.entries(answerKey.value.decisions).filter(([, decision]) => Boolean(decision.sectionId)).map(([questionId]) => questionId);
+      const openSectionIds = new Set(batch.value.scoringPolicy.sections.filter((section) => section.kind === "open").map((section) => section.sectionId));
+      const openQuestionIds = Object.entries(answerKey.value.decisions).filter(([, decision]) => Boolean(decision.sectionId && openSectionIds.has(decision.sectionId))).map(([questionId]) => questionId);
       if (refreshed.value.readingIds.length === 0 && openQuestionIds.length === 0) throw new AppError("READINGS_REQUIRED", "La entrega no tiene lecturas ni preguntas abiertas.", 409);
       const readings = (await getOmrReadingRepository().list(ownerId, refreshed.value.readingIds)).filter((reading): reading is { value: OmrReading; etag: string } => Boolean(reading));
       if (readings.length !== refreshed.value.readingIds.length) throw new AppError("READING_NOT_FOUND", "Falta una lectura de la entrega.", 409);
@@ -104,6 +105,13 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       const decisions = await getManualDecisionRepository().listByReadings(ownerId, refreshed.value.readingIds);
       for (const decision of decisions) {
         manualSelections[decision.questionId] = { selectedOptionIds: decision.selectedOptionIds, status: decision.resolvedStatus as "single" | "blank" };
+      }
+      const testIssues: string[] = [];
+      const rows = readings.flatMap((reading) => reading.value.rows);
+      for (const questionId of Object.keys(answersByQuestion)) {
+        const matching = rows.filter((row) => row.questionId === questionId);
+        if (matching.length !== 1) testIssues.push(`${matching.length ? "omr_question_duplicate" : "omr_question_missing"}:${questionId}`);
+        if (matching.some((row) => row.requiresHumanReview) && !manualSelections[questionId]) testIssues.push(`omr_review_required:${questionId}`);
       }
       const { computation } = computeScore({
         submissionId: submission.value.submissionId,
@@ -131,9 +139,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         if (!transcription) { openIssues.push(`transcription_missing:${questionId}`); continue; }
         openScores.push({ questionId, sectionId: decision.value.sectionId, points: decision.value.totalPoints, maximumPoints: decision.value.maximumPoints, source: decision.value.source, transcriptionId: decision.value.transcriptionId, decisionId: decision.value.decisionId });
       }
-      const mixed = computeMixedScore({ base: computation, openQuestionScores: openScores, openPending: openIssues.length, blockingIssues: openIssues, policy: batch.value.scoringPolicy });
+      const mixed = computeMixedScore({ base: computation, openQuestionScores: openScores, openPending: openIssues.length, blockingIssues: [...testIssues, ...openIssues], policy: batch.value.scoringPolicy });
       const snapshot = await getScoreSnapshotRepository().create({ ...mixed, responseRegionRevisionId: refreshed.value.activeResponseRegionRevisionId, transcriptionRevisionIds: refreshed.value.responseTranscriptionIds, evaluationIds: refreshed.value.responseEvaluationIds, decisionIds: refreshed.value.responseDecisionIds });
-      await getSubmissionRepository().update(ownerId, params.batchId, params.submissionId, refreshed.etag, { state: mixed.blockingIssues.length === 0 ? "scored" : "review", snapshotId: snapshot.snapshot.snapshotId });
+      await getSubmissionRepository().update(ownerId, params.batchId, params.submissionId, refreshed.etag, { state: mixed.blockingIssues.length === 0 ? "scored" : "review", snapshotId: snapshot.snapshot.snapshotId, responseBlockingIssues: mixed.blockingIssues });
       return Response.json({ data: snapshot.snapshot, requestId }, { status: 201, headers: { "x-request-id": requestId } });
     }
 

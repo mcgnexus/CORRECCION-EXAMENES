@@ -2,9 +2,9 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 import { computeMixedScore } from "@/domain/phase4-scoring";
 import { computeScore } from "@/domain/phase3-scoring";
-import type { Batch, OmrTemplateRevision, ScoreSnapshot, Submission } from "@/domain/phase3-schemas";
+import { omrRowResultSchema, type Batch, type OmrTemplateRevision, type Submission } from "@/domain/phase3-schemas";
 import type { AnswerKeyRevision } from "@/domain/phase2-schemas";
-import { transcriptionModelOutputSchema, type ResponseRegion } from "@/domain/phase4-schemas";
+import { transcriptionModelOutputSchema } from "@/domain/phase4-schemas";
 import { AppError } from "@/lib/errors";
 import { generateGeminiJsonWithMetadata } from "@/providers/gemini";
 import { ProviderError } from "@/providers/contracts";
@@ -21,7 +21,8 @@ export type ProcessBatchInput = {
   maxAttempts: number;
 };
 
-type BatchContext = { batch: Batch; answerKey: AnswerKeyRevision; template: OmrTemplateRevision; submissions: Submission[]; totalPages: number; totalQuestions: number };
+type QuestionMap = { validIds: string[]; aliases: Record<string, string[]> };
+type BatchContext = { batch: Batch; answerKey: AnswerKeyRevision; template: OmrTemplateRevision; questionMap: QuestionMap; openQuestionIds: string[]; submissions: Submission[]; totalPages: number; totalQuestions: number };
 type PageInput = { ownerId: string; examId: string; batchId: string; submissionId: string; pageId: string; assetId: string; imageBase64: string };
 type OmrResult = { rows: unknown; alignment: Record<string, unknown> };
 type RegionTask = { submissionId: string; regionRevisionId: string; questionId: string; regionIds: string[]; cropAssetIds: string[]; base64: string[] };
@@ -43,9 +44,21 @@ function hash(value: string) { return createHash("sha256").update(value).digest(
 function errorCode(error: unknown) { return error instanceof ProviderError || error instanceof AppError ? error.code : "BATCH_TASK_FAILED"; }
 function retryable(error: unknown) { return error instanceof ProviderError || error instanceof AppError ? error.retryable : false; }
 
+function normalizeRows(rows: unknown, questionMap: QuestionMap) {
+  const seen = new Set<string>();
+  return omrRowResultSchema.array().parse(rows).map((row) => {
+    const candidates = questionMap.validIds.includes(row.questionId) ? [row.questionId] : questionMap.aliases[row.questionId] ?? [];
+    if (candidates.length !== 1 || !questionMap.validIds.includes(candidates[0])) throw new AppError(candidates.length > 1 ? "OMR_QUESTION_MAPPING_AMBIGUOUS" : "OMR_QUESTION_MAPPING_MISSING", "La fila OMR no corresponde de forma unívoca al solucionario.", 409);
+    const questionId = candidates[0];
+    if (seen.has(questionId)) throw new AppError("OMR_QUESTION_DUPLICATE", "La lectura contiene preguntas duplicadas.", 409);
+    seen.add(questionId);
+    return { ...row, questionId };
+  });
+}
+
 async function loadBatchContext(input: ProcessBatchInput): Promise<BatchContext> {
   "use step";
-  const { getAnswerKeyRepository, getBatchRepository, getOmrTemplateRepository, getSubmissionRepository } = await import("@/repositories");
+  const { getAnswerKeyRepository, getBatchRepository, getOmrTemplateRepository, getSubmissionRepository, getExamRevisionRepository, getStructureProposalRepository } = await import("@/repositories");
   const batchResult = await getBatchRepository().get(input.ownerId, input.examId, input.batchId);
   if (!batchResult) throw new AppError("BATCH_NOT_FOUND", "Lote no encontrado.", 404);
   if (batchResult.value.state === "closed" || batchResult.value.state === "cancelled") throw new AppError("BATCH_NOT_PROCESSABLE", "El lote ya no admite procesamiento.", 409);
@@ -57,12 +70,27 @@ async function loadBatchContext(input: ProcessBatchInput): Promise<BatchContext>
   ]);
   if (!answerKey || answerKey.value.status !== "approved") throw new AppError("ANSWER_KEY_STALE", "El solucionario debe estar aprobado.", 409);
   if (!template || template.value.state !== "approved") throw new AppError("TEMPLATE_STALE", "La plantilla debe estar aprobada.", 409);
+  const revision = await getExamRevisionRepository().get(input.ownerId, input.examId, answerKey.value.examRevisionId);
+  const structure = revision?.value.activeStructureProposalId ? await getStructureProposalRepository().get(input.ownerId, input.examId, revision.value.activeStructureProposalId) : null;
+  if (!structure || structure.value.examRevisionId !== answerKey.value.examRevisionId) throw new AppError("STRUCTURE_NOT_FOUND", "Falta la estructura de la revisión del solucionario.", 409);
+  const openSections = new Set(batchResult.value.scoringPolicy.sections.filter((section) => section.kind === "open").map((section) => section.sectionId));
+  const openQuestionIds = Object.entries(answerKey.value.decisions).filter(([, decision]) => decision.sectionId && openSections.has(decision.sectionId)).map(([id]) => id);
+  const questionMap: QuestionMap = { validIds: Object.keys(answerKey.value.decisions).filter((id) => !openQuestionIds.includes(id)), aliases: {} };
+  const aliases = new Map<string, Set<string>>();
+  for (const question of structure.value.questions) {
+    for (const alias of [String(question.number), question.label]) {
+      const ids = aliases.get(alias) ?? new Set<string>();
+      ids.add(question.questionId);
+      aliases.set(alias, ids);
+    }
+  }
+  questionMap.aliases = Object.fromEntries([...aliases].map(([alias, ids]) => [alias, [...ids]]));
   const submissions = await Promise.all(batchResult.value.submissionIds.map((submissionId) => getSubmissionRepository().get(input.ownerId, input.batchId, submissionId)));
   if (submissions.some((item) => !item)) throw new AppError("SUBMISSION_MANIFEST_MISSING", "Falta una entrega referenciada por el lote.", 409);
   const values = submissions.map((item) => item!.value);
   const totalPages = values.reduce((sum, submission) => sum + submission.pageIds.length, 0);
   if (totalPages > batchResult.value.maxPages) throw new AppError("BATCH_PAGE_LIMIT", "El lote supera el límite de páginas configurado.", 413);
-  return { batch: batchResult.value, answerKey: answerKey.value, template: template.value, submissions: values, totalPages, totalQuestions: Object.keys(answerKey.value.decisions).length * values.length };
+  return { batch: batchResult.value, answerKey: answerKey.value, template: template.value, questionMap, openQuestionIds, submissions: values, totalPages, totalQuestions: Object.keys(answerKey.value.decisions).length * values.length };
 }
 
 async function updateJobProgress(input: ProcessBatchInput, progress: { phase: string; current: number; completed: number; total: number; percent: number; totalSubmissions: number; completedSubmissions: number; failedSubmissions: number; blockedSubmissions: number; totalPages: number; completedPages: number; totalQuestions: number; completedQuestions: number; currentSubmissionId?: string; currentPageId?: string; currentQuestionId?: string }) {
@@ -134,48 +162,49 @@ async function callOmr(page: PageInput, template: OmrTemplateRevision) {
   if (process.env.VERCEL_AUTOMATION_BYPASS_SECRET) headers["x-vercel-protection-bypass"] = process.env.VERCEL_AUTOMATION_BYPASS_SECRET;
   const response = await fetch(`${origin}/api/omr`, { method: "POST", headers, body: JSON.stringify({ assetId: page.assetId, mode: "asset_bytes", imageBase64: page.imageBase64, preprocess: template.preprocess, template: { canvasWidth: template.canvasWidth, canvasHeight: template.canvasHeight, sourceAnchors: template.sourceAnchors, targetAnchors: template.targetAnchors, bubbles: template.bubbles, threshold: template.threshold, margin: template.margin, algorithmVersion: template.algorithmVersion } }), signal: AbortSignal.timeout(120_000) });
   const responseText = await response.text();
-  if (response.status === 429 || response.status >= 500) throw new AppError("OMR_SERVICE_RETRYABLE", `El servicio OMR respondió HTTP ${response.status}: ${responseText.slice(0, 200)}`, 503, true);
-  if (!response.ok) throw new AppError("OMR_SERVICE_FAILED", `El servicio OMR respondió HTTP ${response.status}: ${responseText.slice(0, 200)}`, 502);
+  if (response.status === 429 || response.status >= 500) throw new AppError(`OMR_SERVICE_HTTP_${response.status}_RETRYABLE`, `El servicio OMR respondió HTTP ${response.status}.`, 503, true);
+  if (!response.ok) throw new AppError(`OMR_SERVICE_HTTP_${response.status}`, `El servicio OMR respondió HTTP ${response.status}.`, 502);
   return (JSON.parse(responseText) as { result: OmrResult }).result;
 }
 
-async function processPage(input: ProcessBatchInput, page: PageInput, template: OmrTemplateRevision) {
+async function processPage(input: ProcessBatchInput, page: PageInput, template: OmrTemplateRevision, questionMap: QuestionMap) {
   "use step";
   const { getOmrReadingRepository, getSubmissionRepository } = await import("@/repositories");
-  const { omrRowResultSchema } = await import("@/domain/phase3-schemas");
   const repository = getOmrReadingRepository();
   const inputHash = hash(`${page.assetId}:${template.templateId}:${template.algorithmVersion}`);
   const submission = await getSubmissionRepository().get(input.ownerId, input.batchId, page.submissionId);
   if (!submission) throw new AppError("SUBMISSION_NOT_FOUND", "Entrega no encontrada.", 404);
   const existing = await repository.findByInput(input.ownerId, submission.value.readingIds, page.assetId, template.templateId, inputHash);
-  if (existing && existing.value.status !== "failed") return { readingId: existing.value.readingId, issue: undefined };
-  if (existing && existing.value.status === "failed" && existing.value.errorCode && !existing.value.errorCode.includes("RETRYABLE")) return { readingId: existing.value.readingId, issue: `${page.assetId}:${existing.value.errorCode}`, retryable: false };
-  if (existing && existing.value.status === "failed" && existing.value.errorCode?.includes("RETRYABLE")) return { readingId: existing.value.readingId, issue: `${page.assetId}:${existing.value.errorCode}`, retryable: true };
   try {
-    const result = await callOmr(page, template);
+    const result = existing && existing.value.status !== "failed" ? existing.value : await callOmr(page, template);
+    const rows = normalizeRows(result.rows, questionMap);
     if (existing) {
-      const reading = await repository.update(input.ownerId, existing.value.readingId, existing.etag, { alignment: result.alignment, rows: omrRowResultSchema.array().parse(result.rows), status: "completed", errorCode: undefined });
+      const reading = await repository.update(input.ownerId, existing.value.readingId, existing.etag, { alignment: result.alignment, rows, status: existing.value.status === "failed" ? "completed" : existing.value.status, errorCode: undefined });
       return { readingId: reading.value.readingId };
     }
-    const reading = await repository.create({ submissionId: page.submissionId, batchId: page.batchId, examId: page.examId, ownerId: page.ownerId, pageId: page.pageId, assetId: page.assetId, templateRevisionId: template.templateId, algorithmVersion: template.algorithmVersion, inputHash, alignment: result.alignment, rows: omrRowResultSchema.array().parse(result.rows), status: "completed" });
+    const reading = await repository.create({ submissionId: page.submissionId, batchId: page.batchId, examId: page.examId, ownerId: page.ownerId, pageId: page.pageId, assetId: page.assetId, templateRevisionId: template.templateId, algorithmVersion: template.algorithmVersion, inputHash, alignment: result.alignment, rows, status: "completed" });
     return { readingId: reading.reading.readingId };
   } catch (error) {
-    if (existing) return { readingId: existing.value.readingId, issue: `${page.assetId}:${errorCode(error)}`, retryable: retryable(error) };
+    if (existing) {
+      await repository.update(input.ownerId, existing.value.readingId, existing.etag, { rows: [], status: "failed", errorCode: errorCode(error) });
+      return { readingId: existing.value.readingId, issue: `${page.assetId}:${errorCode(error)}`, retryable: retryable(error) };
+    }
     const reading = await repository.create({ submissionId: page.submissionId, batchId: page.batchId, examId: page.examId, ownerId: page.ownerId, pageId: page.pageId, assetId: page.assetId, templateRevisionId: template.templateId, algorithmVersion: template.algorithmVersion, inputHash, alignment: {}, rows: [], status: "failed", errorCode: retryable(error) ? `${errorCode(error)}_RETRYABLE` : errorCode(error) });
     return { readingId: reading.reading.readingId, issue: `${page.assetId}:${errorCode(error)}`, retryable: retryable(error) };
   }
 }
 
-async function processPageWithRetries(input: ProcessBatchInput, page: PageInput, template: OmrTemplateRevision) {
+async function processPageWithRetries(input: ProcessBatchInput, page: PageInput, template: OmrTemplateRevision, questionMap: QuestionMap) {
   let result: Awaited<ReturnType<typeof processPage>> | undefined;
   for (let attempt = 0; attempt < input.maxAttempts; attempt += 1) {
-    result = await processPage(input, page, template);
+    result = await processPage(input, page, template, questionMap);
+    if (result.readingId) await appendSubmission(input, page.submissionId, { readingIds: [result.readingId] });
     if (!result.issue || !result.retryable || attempt === input.maxAttempts - 1) return result;
   }
   return result!;
 }
 
-async function prepareRegionTasks(input: ProcessBatchInput, submissionId: string) {
+async function prepareRegionTasks(input: ProcessBatchInput, submissionId: string, openQuestionIds: string[]) {
   "use step";
   const { getAssetRepository, getResponseRegionRepository, getSubmissionRepository, getTranscriptionRepository } = await import("@/repositories");
   const submission = await getSubmissionRepository().get(input.ownerId, input.batchId, submissionId);
@@ -187,6 +216,7 @@ async function prepareRegionTasks(input: ProcessBatchInput, submissionId: string
   const blobs = (await import("@/repositories/blob-store")).getBlobStore();
   const grouped = new Map<string, RegionTask>();
   for (const region of regions.revision.regions) {
+    if (!openQuestionIds.includes(region.questionId)) continue;
     if (doneQuestions.has(region.questionId)) continue;
     const current = grouped.get(region.questionId) ?? { submissionId, regionRevisionId: regions.revision.regionRevisionId, questionId: region.questionId, regionIds: [], cropAssetIds: [], base64: [] };
     const asset = await getAssetRepository().getWithMeta(input.ownerId, region.cropAssetId);
@@ -307,11 +337,25 @@ async function ensureSnapshot(input: ProcessBatchInput, context: BatchContext, s
   const { getManualDecisionRepository, getOmrReadingRepository, getResponseDecisionRepository, getScoreSnapshotRepository, getSubmissionRepository, getTranscriptionRepository } = await import("@/repositories");
   const submission = await getSubmissionRepository().get(input.ownerId, input.batchId, submissionId);
   if (!submission) throw new AppError("SUBMISSION_NOT_FOUND", "Entrega no encontrada.", 404);
-  const readings = await getOmrReadingRepository().list(input.ownerId, submission.value.readingIds);
+  const storedReadings = await getOmrReadingRepository().list(input.ownerId, submission.value.readingIds);
+  // Only the current input for each asset participates; historical errors must not poison a rerun.
+  const activeReadings = new Map<string, (typeof storedReadings)[number]>();
+  for (const item of storedReadings) {
+    const reading = item.value;
+    if (!submission.value.assetIds.includes(reading.assetId) || reading.templateRevisionId !== context.template.templateId || reading.inputHash !== hash(`${reading.assetId}:${context.template.templateId}:${context.template.algorithmVersion}`)) continue;
+    const previous = activeReadings.get(reading.assetId);
+    if (!previous || (previous.value.status === "failed" && reading.status !== "failed") || (previous.value.status === reading.status && reading.updatedAt > previous.value.updatedAt)) activeReadings.set(reading.assetId, item);
+  }
+  const readings = [...activeReadings.values()];
   const answerByQuestion: Record<string, { correctOptionIds: string[] }> = {};
-  for (const [questionId, decision] of Object.entries(context.answerKey.decisions)) { const answer = decision.answer as { selectedOptionIds?: string[] } | string[] | null; const selected = Array.isArray(answer) ? answer : answer?.selectedOptionIds; if (Array.isArray(selected)) answerByQuestion[questionId] = { correctOptionIds: selected.map(String) }; }
+  for (const [questionId, decision] of Object.entries(context.answerKey.decisions)) { if (!context.questionMap.validIds.includes(questionId)) continue; const answer = decision.answer as { selectedOptionIds?: string[] } | string[] | null; const selected = Array.isArray(answer) ? answer : answer?.selectedOptionIds; if (Array.isArray(selected)) answerByQuestion[questionId] = { correctOptionIds: selected.map(String) }; }
   const manualSelections: Record<string, { selectedOptionIds: string[]; status: "single" | "blank" }> = {};
-  for (const decision of await getManualDecisionRepository().listByReadings(input.ownerId, submission.value.readingIds)) manualSelections[decision.questionId] = { selectedOptionIds: decision.selectedOptionIds, status: decision.resolvedStatus as "single" | "blank" };
+  for (const decision of await getManualDecisionRepository().listByReadings(input.ownerId, readings.map((item) => item.value.readingId))) manualSelections[decision.questionId] = { selectedOptionIds: decision.selectedOptionIds, status: decision.resolvedStatus as "single" | "blank" };
+  const rowCounts = new Map<string, number>();
+  for (const reading of readings) for (const row of reading.value.rows) rowCounts.set(row.questionId, (rowCounts.get(row.questionId) ?? 0) + 1);
+  const testIssues = context.questionMap.validIds.flatMap((id) => !rowCounts.has(id) ? [`omr_question_missing:${id}`] : rowCounts.get(id)! > 1 ? [`omr_question_duplicate:${id}`] : []);
+  const reviewQuestionIds = new Set(readings.flatMap((reading) => reading.value.rows.filter((row) => row.requiresHumanReview && !manualSelections[row.questionId]).map((row) => row.questionId)));
+  testIssues.push(...[...reviewQuestionIds].map((id) => `omr_review_required:${id}`));
   const base = computeScore({ submissionId, batchId: input.batchId, examId: input.examId, ownerId: input.ownerId, answerKeyRevisionId: input.answerKeyRevisionId, templateRevisionId: input.templateRevisionId, scoringPolicyRevisionId: input.scoringPolicyRevisionId, readings: readings.map((item) => item.value), answersByQuestion: answerByQuestion, manualSelections, policy: context.batch.scoringPolicy }).computation;
   const openSectionIds = new Set(context.batch.scoringPolicy.sections.filter((section) => section.kind === "open").map((section) => section.sectionId));
   const openQuestionIds = Object.entries(context.answerKey.decisions).filter(([, decision]) => Boolean(decision.sectionId && openSectionIds.has(decision.sectionId))).map(([questionId]) => questionId);
@@ -328,12 +372,13 @@ async function ensureSnapshot(input: ProcessBatchInput, context: BatchContext, s
     if (!transcription) { openIssues.push(`transcription_missing:${questionId}`); continue; }
     openScores.push({ questionId, sectionId: decision.value.sectionId, points: decision.value.totalPoints, maximumPoints: decision.value.maximumPoints, source: decision.value.source, transcriptionId: decision.value.transcriptionId, decisionId: decision.value.decisionId });
   }
-  const allIssues = [...new Set([...issues, ...base.blockingIssues, ...openIssues, ...(submission.value.confirmedIdentity ? [] : ["IDENTITY_REQUIRED"])])];
+  const allIssues = [...new Set([...issues, ...base.blockingIssues, ...testIssues, ...openIssues, ...(submission.value.confirmedIdentity ? [] : ["IDENTITY_REQUIRED"])])];
   const mixed = computeMixedScore({ base, openQuestionScores: openScores, openPending: openIssues.length, blockingIssues: allIssues, policy: context.batch.scoringPolicy });
   const existing = submission.value.snapshotId ? await getScoreSnapshotRepository().get(input.ownerId, submission.value.snapshotId) : null;
-  const snapshot = existing && existing.value.answerKeyRevisionId === input.answerKeyRevisionId && existing.value.templateRevisionId === input.templateRevisionId && existing.value.scoringPolicyRevisionId === input.scoringPolicyRevisionId && JSON.stringify(existing.value.transcriptionRevisionIds) === JSON.stringify(submission.value.responseTranscriptionIds) && JSON.stringify(existing.value.evaluationIds) === JSON.stringify(submission.value.responseEvaluationIds) && JSON.stringify(existing.value.decisionIds) === JSON.stringify(submission.value.responseDecisionIds) && JSON.stringify(existing.value.blockingIssues) === JSON.stringify(allIssues) ? existing.value : (await getScoreSnapshotRepository().create({ ...mixed, responseRegionRevisionId: submission.value.activeResponseRegionRevisionId, transcriptionRevisionIds: submission.value.responseTranscriptionIds, evaluationIds: submission.value.responseEvaluationIds, decisionIds: submission.value.responseDecisionIds })).snapshot;
+  const snapshot = existing && existing.value.answerKeyRevisionId === input.answerKeyRevisionId && existing.value.templateRevisionId === input.templateRevisionId && existing.value.scoringPolicyRevisionId === input.scoringPolicyRevisionId && JSON.stringify(existing.value.questionScores) === JSON.stringify(mixed.questionScores) && existing.value.score === mixed.score && JSON.stringify(existing.value.openQuestionScores) === JSON.stringify(mixed.openQuestionScores) && JSON.stringify(existing.value.transcriptionRevisionIds) === JSON.stringify(submission.value.responseTranscriptionIds) && JSON.stringify(existing.value.evaluationIds) === JSON.stringify(submission.value.responseEvaluationIds) && JSON.stringify(existing.value.decisionIds) === JSON.stringify(submission.value.responseDecisionIds) && JSON.stringify(existing.value.blockingIssues) === JSON.stringify(allIssues) ? existing.value : (await getScoreSnapshotRepository().create({ ...mixed, responseRegionRevisionId: submission.value.activeResponseRegionRevisionId, transcriptionRevisionIds: submission.value.responseTranscriptionIds, evaluationIds: submission.value.responseEvaluationIds, decisionIds: submission.value.responseDecisionIds })).snapshot;
   await appendSubmission(input, submissionId, { snapshotId: snapshot.snapshotId, responseBlockingIssues: allIssues, state: allIssues.length ? "review" : "review" });
-  return { snapshot, blocked: allIssues.length > 0, issues: allIssues };
+  const completedQuestions = new Set(base.questionScores.filter((score) => score.outcome !== "pending" && rowCounts.get(score.questionId) === 1 && !reviewQuestionIds.has(score.questionId)).map((score) => score.questionId)).size + openScores.length;
+  return { snapshot, blocked: allIssues.length > 0, issues: allIssues, completedQuestions };
 }
 
 async function finishJob(input: ProcessBatchInput, status: "completed" | "cancelled" | "failed", progress: Parameters<typeof updateJobProgress>[1], retryableValue: boolean, errorCodeValue?: string) {
@@ -342,7 +387,8 @@ async function finishJob(input: ProcessBatchInput, status: "completed" | "cancel
   const current = await getJobRepository().getWithMeta(input.ownerId, input.jobId);
   if (!current) return;
   const finalStatus = current.job.status === "cancel_requested" && status === "completed" ? "cancelled" : status;
-  await getJobRepository().updateWithMeta(input.ownerId, input.jobId, current.etag, { status: finalStatus, phase: finalStatus, step: finalStatus, retryable: retryableValue, errorCode: errorCodeValue, progress: { ...progress, phase: finalStatus, percent: finalStatus === "completed" ? 100 : progress.percent } });
+  const phase = finalStatus === "completed" && (progress.blockedSubmissions > 0 || progress.failedSubmissions > 0) ? "review_required" : finalStatus;
+  await getJobRepository().updateWithMeta(input.ownerId, input.jobId, current.etag, { status: finalStatus, phase, step: phase, retryable: retryableValue, errorCode: errorCodeValue, progress: { ...progress, phase, percent: phase === "review_required" ? Math.min(99, progress.percent) : progress.percent } });
   await getAuditRepository().append({ ownerId: input.ownerId, actorId: input.ownerId, type: `batch.processing.${finalStatus}`, aggregateType: "job", aggregateId: input.jobId, payload: { examId: input.examId, batchId: input.batchId, completedSubmissions: progress.completedSubmissions, failedSubmissions: progress.failedSubmissions, blockedSubmissions: progress.blockedSubmissions } });
 }
 
@@ -368,14 +414,14 @@ export async function processBatchWorkflow(input: ProcessBatchInput) {
         for (let offset = 0; offset < pages.length; offset += input.concurrency) {
           if (await isCancelled(input)) { await setBatchState(input, "review", ["PROCESSING_CANCELLED"]); await finishJob(input, "cancelled", progress(), false); return { status: "cancelled" as const }; }
           const chunk = pages.slice(offset, offset + input.concurrency);
-          const results = await Promise.all(chunk.map((page) => processPageWithRetries(input, page, context.template)));
+          const results = await Promise.all(chunk.map((page) => processPageWithRetries(input, page, context.template, context.questionMap)));
           await appendSubmission(input, submission.submissionId, { readingIds: results.map((result) => result.readingId) });
           results.forEach((result) => { if (result.issue) issues.push(result.issue); });
-          completedPages += results.length;
+          completedPages += results.filter((result) => !result.issue).length;
           await updateJobProgress(input, { ...progress(), currentPageId: chunk[chunk.length - 1]?.pageId });
         }
       } catch (error) { issues.push(`${submission.submissionId}:${errorCode(error)}`); failedSubmissions += 1; }
-      const regionPlan = await prepareRegionTasks(input, submission.submissionId);
+      const regionPlan = context.openQuestionIds.length ? await prepareRegionTasks(input, submission.submissionId, context.openQuestionIds) : { tasks: [], issue: undefined, regionRevisionId: undefined };
       if (regionPlan.issue) issues.push(regionPlan.issue);
       if (regionPlan.regionRevisionId) await appendSubmission(input, submission.submissionId, { activeResponseRegionRevisionId: regionPlan.regionRevisionId });
       for (let offset = 0; offset < regionPlan.tasks.length; offset += input.concurrency) {
@@ -387,10 +433,9 @@ export async function processBatchWorkflow(input: ProcessBatchInput) {
           if (result.providerCalled) await addProviderUsage(input, result.providerUsage, result.retryCount);
           if (result.issue) issues.push(result.issue);
         }
-        completedQuestions += results.length;
         await updateJobProgress(input, { ...progress(), phase: "transcription", currentQuestionId: chunk[chunk.length - 1]?.questionId });
       }
-      const evaluationPlan = await prepareEvaluationTasks(input, context, submission.submissionId);
+      const evaluationPlan = context.openQuestionIds.length ? await prepareEvaluationTasks(input, context, submission.submissionId) : { tasks: [], issue: undefined };
       if (evaluationPlan.issue && evaluationPlan.issue !== "IDENTITY_REQUIRED") issues.push(evaluationPlan.issue);
       for (let offset = 0; offset < evaluationPlan.tasks.length; offset += input.concurrency) {
         if (await isCancelled(input)) { await setBatchState(input, "review", ["PROCESSING_CANCELLED"]); await finishJob(input, "cancelled", progress(), false); return { status: "cancelled" as const }; }
@@ -404,6 +449,7 @@ export async function processBatchWorkflow(input: ProcessBatchInput) {
         await updateJobProgress(input, { ...progress(), phase: "evaluation", currentQuestionId: chunk[chunk.length - 1]?.questionId });
       }
       const snapshot = await ensureSnapshot(input, context, submission.submissionId, issues);
+      completedQuestions += snapshot.completedQuestions;
       issues = [...new Set([...issues, ...snapshot.issues])];
       if (snapshot.blocked) blockedSubmissions += 1;
       else completedSubmissions += 1;

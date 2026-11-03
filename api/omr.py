@@ -84,12 +84,27 @@ class handler(BaseHTTPRequestHandler):
             if not isinstance(template_data, dict):
                 _json_response(self, 400, {"error": "template es obligatorio"})
                 return
+            bubbles = []
+            for bubble in template_data.get("bubbles", []):
+                bubble_data = {**bubble}
+                for public_name, internal_name in (("questionId", "question_id"), ("optionId", "option_id")):
+                    if public_name in bubble_data:
+                        if internal_name in bubble_data:
+                            raise ValueError(f"Identificador duplicado: {public_name}/{internal_name}")
+                        bubble_data[internal_name] = bubble_data.pop(public_name)
+                bubbles.append(BubbleRegion(**bubble_data))
+            canvas_width = int(template_data["canvasWidth"])
+            canvas_height = int(template_data["canvasHeight"])
+            target_anchors = tuple(tuple(point) for point in template_data["targetAnchors"])
+            # La UI guarda destinos normalizados; los fixtures pueden usar pixeles.
+            if target_anchors and all(0.0 <= value <= 1.0 for point in target_anchors for value in point):
+                target_anchors = tuple((x * (canvas_width - 1), y * (canvas_height - 1)) for x, y in target_anchors)
             template = OMRTemplate(
-                canvas_width=int(template_data["canvasWidth"]),
-                canvas_height=int(template_data["canvasHeight"]),
+                canvas_width=canvas_width,
+                canvas_height=canvas_height,
                 source_anchors=tuple(tuple(point) for point in template_data["sourceAnchors"]),
-                target_anchors=tuple(tuple(point) for point in template_data["targetAnchors"]),
-                bubbles=tuple(BubbleRegion(**bubble) for bubble in template_data.get("bubbles", [])),
+                target_anchors=target_anchors,
+                bubbles=tuple(bubbles),
                 algorithm_version=str(template_data.get("algorithmVersion", "omr-1")),
             )
             image_bytes = base64.b64decode(image_base64, validate=True)

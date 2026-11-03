@@ -11,7 +11,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     assertSameOrigin(request);
     const { ownerId } = await requireOwner();
     const params = await context.params;
-    const body = bodySchema.parse(await request.json().catch(() => ({})));
+    bodySchema.parse(await request.json().catch(() => ({})));
     const batchResult = await getBatchRepository().get(ownerId, params.id, params.batchId);
     if (!batchResult) throw new AppError("NOT_FOUND", "Lote no encontrado.", 404);
     if (batchResult.value.state === "closed") throw new AppError("BATCH_ALREADY_CLOSED", "El lote ya está cerrado.", 409);
@@ -31,13 +31,12 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     if (submissions.some((item) => !item)) throw new AppError("SUBMISSION_MANIFEST_MISSING", "Falta una entrega referenciada por el lote.", 409);
     for (const result of submissions) {
       const submission = result!.value;
-      if (submission.state !== "closed") throw new AppError("SUBMISSION_NOT_CLOSED", "Todas las entregas deben estar cerradas.", 409);
+      if (submission.state !== "closed") throw new AppError("SUBMISSION_NOT_CLOSED", `La entrega ${submission.submissionId} está en estado ${submission.state}. Confirma la identidad, revisa la lectura, puntúa y cierra cada entrega antes de finalizar el lote.`, 409);
       if (!submission.snapshotId) throw new AppError("SNAPSHOT_REQUIRED", "Cada entrega debe tener snapshot.", 409);
-      if (submission.responseBlockingIssues.length > 0) {
-      // Allow finalization with blocking issues
-    }
+      if (submission.responseBlockingIssues.length > 0) throw new AppError("SUBMISSION_BLOCKED", `La entrega ${submission.submissionId} tiene incidencias pendientes. Revísala antes de finalizar.`, 409);
       const snapshot = await getScoreSnapshotRepository().get(ownerId, submission.snapshotId);
       if (!snapshot || snapshot.value.state !== "closed") throw new AppError("SNAPSHOT_NOT_CLOSED", "Cada snapshot debe estar cerrado.", 409);
+      if (snapshot.value.blockingIssues.length > 0) throw new AppError("SNAPSHOT_BLOCKED", "Una puntuación contiene incidencias pendientes; no puede finalizarse como definitiva.", 409);
       if (snapshot.value.answerKeyRevisionId !== batchResult.value.answerKeyRevisionId || snapshot.value.templateRevisionId !== batchResult.value.templateRevisionId || snapshot.value.scoringPolicyRevisionId !== batchResult.value.scoringPolicyRevisionId || snapshot.value.submissionId !== submission.submissionId || snapshot.value.batchId !== params.batchId || snapshot.value.examId !== params.id || snapshot.value.ownerId !== ownerId || snapshot.value.responseRegionRevisionId !== submission.activeResponseRegionRevisionId || JSON.stringify(snapshot.value.transcriptionRevisionIds) !== JSON.stringify(submission.responseTranscriptionIds) || JSON.stringify(snapshot.value.evaluationIds) !== JSON.stringify(submission.responseEvaluationIds) || JSON.stringify(snapshot.value.decisionIds) !== JSON.stringify(submission.responseDecisionIds)) throw new AppError("SNAPSHOT_DEPENDENCIES_STALE", "Un snapshot no corresponde a las dependencias definitivas del lote.", 409);
     }
 

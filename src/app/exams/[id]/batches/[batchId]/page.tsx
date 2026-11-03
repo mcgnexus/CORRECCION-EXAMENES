@@ -4,9 +4,9 @@ import { upload } from "@vercel/blob/client";
 import { useParams } from "next/navigation";
 import { ChangeEvent, useCallback, useEffect, useState } from "react";
 
-type Submission = { submissionId: string; state: string; pageIds: string[]; assetIds: string[]; suggestedIdentity?: string; identityConfidence?: number; confirmedIdentity?: string; readingIds: string[]; snapshotId?: string };
+type Submission = { submissionId: string; state: string; pageIds: string[]; assetIds: string[]; suggestedIdentity?: string; identityConfidence?: number; confirmedIdentity?: string; readingIds: string[]; snapshotId?: string; responseBlockingIssues?: string[] };
 type ReadingRow = { questionId: string; status: string; selectedOptionIds: string[]; candidateOptionIds: string[]; requiresHumanReview: boolean };
-type Reading = { readingId: string; status: string; rows: ReadingRow[] };
+type Reading = { readingId: string; status: string; rows: ReadingRow[]; errorCode?: string };
 type Page = { pageId: string; sourceAssetId: string; pageNumber: number; rotation: 0 | 90 | 180 | 270 };
 type ResponseRegion = { regionId: string; questionId: string; questionType: "short_text" | "essay"; pageId: string; sourceAssetId: string; cropAssetId: string; rect: { x: number; y: number; width: number; height: number }; order: number };
 type Transcription = { transcriptionId: string; questionId: string; literalText: string; normalizedText?: string; correctedText?: string; confidence: number; uncertainSpans: Array<{ text: string; reason: string }>; state: string; etag: string };
@@ -53,6 +53,7 @@ export default function BatchPage() {
     const payload = await response.json() as { data?: Submission[]; error?: { message?: string } };
     if (!response.ok || !payload.data) throw new Error(payload.error?.message ?? "No se pudo cargar el lote.");
     setSubmissions(payload.data);
+    setSelected((current) => current ? payload.data!.find((submission) => submission.submissionId === current.submissionId) ?? null : null);
     const batchResponse = await fetch(`/api/exams/${params.id}/batches/${params.batchId}`);
     const batchPayload = await batchResponse.json() as { data?: Batch; error?: { message?: string } };
     if (batchResponse.ok && batchPayload.data) { setBatch(batchPayload.data); setBatchEtag(batchResponse.headers.get("etag") ?? ""); }
@@ -291,6 +292,11 @@ export default function BatchPage() {
 
   async function finalizeBatch() {
     if (!batch || !batchEtag) return;
+    const pending = submissions.filter((submission) => submission.state !== "closed");
+    if (submissions.length === 0 || pending.length > 0) {
+      setMessage(submissions.length === 0 ? "Sube y procesa las entregas antes de finalizar." : `Quedan ${pending.length} entregas por cerrar. Selecciona cada entrega, confirma su identidad, revisa la lectura, puntúa y pulsa Cerrar entrega.`);
+      return;
+    }
     setBusy(true);
     const response = await fetch(`/api/exams/${params.id}/batches/${params.batchId}/finalize`, { method: "POST", headers: { "content-type": "application/json", origin: window.location.origin }, body: JSON.stringify({ expectedEtag: batchEtag }) });
     const payload = await response.json() as { data?: Batch; error?: { message?: string } };
@@ -332,6 +338,8 @@ export default function BatchPage() {
         <h1>Lote de corrección.</h1>
         <p className="intro">Identidad confirmada, lectura OMR y decisión humana antes de puntuar. Las incidencias bloquean el cierre.</p>
         {message ? <p className="notice" role="status">{message}</p> : null}
+        {batchJob?.status === "completed" && ((batchJob.progress.blockedSubmissions ?? 0) > 0 || (batchJob.progress.failedSubmissions ?? 0) > 0) ? <p className="notice" role="status">El procesamiento ha terminado con entregas pendientes de revisión. No significa que las respuestas estén corregidas ni que el lote pueda cerrarse.</p> : null}
+        {submissions.some((submission) => submission.state !== "closed") ? <section className="panel" aria-label="Pasos pendientes para finalizar"><h2>Pendiente de cierre</h2><p>Primero procesa el lote. Después revisa y cierra cada entrega; solo entonces podrás finalizar.</p><ul>{submissions.filter((submission) => submission.state !== "closed").map((submission) => <li key={submission.submissionId}><button className="button secondary" type="button" onClick={() => openSubmission(submission)}>Revisar {submission.confirmedIdentity ?? submission.submissionId.slice(0, 8)}</button> Estado: {submission.state}. {!submission.confirmedIdentity ? "Falta confirmar la identidad. " : ""}{!submission.snapshotId ? "Falta puntuar la entrega. " : ""}{submission.responseBlockingIssues?.length ? `Incidencias: ${submission.responseBlockingIssues.join(", ")}` : ""}</li>)}</ul></section> : null}
         {batch ? <><section className="panel"><h2>Procesamiento masivo</h2><p className="intro">Estado: {batch.state}. El job procesa páginas y respuestas disponibles y siempre deja la aprobación final para revisión humana.</p><div className="actions"><button className="button" type="button" disabled={busy || batch.state === "closed" || batch.state === "cancelled" || ["queued", "running", "cancel_requested"].includes(batchJob?.status ?? "")} onClick={startBatchProcessing}>Procesar lote</button>{batchJob && ["queued", "running"].includes(batchJob.status) ? <button className="button secondary" type="button" onClick={() => updateBatchJob("cancel")}>Cancelar</button> : null}{batchJob?.status === "failed" && batchJobEtag ? <button className="button secondary" type="button" onClick={() => updateBatchJob("retry")}>Reintentar</button> : null}</div>{batchJob ? <p className="intro">Job {batchJob.jobId}: {batchJob.status}, {batchJob.progress.percent}% ({batchJob.progress.phase}). Submissions {batchJob.progress.completedSubmissions ?? 0}/{batchJob.progress.totalSubmissions ?? 0}; páginas {batchJob.progress.completedPages ?? 0}/{batchJob.progress.totalPages ?? 0}; preguntas {batchJob.progress.completedQuestions ?? 0}/{batchJob.progress.totalQuestions ?? 0}. Incidencias: {batchJob.progress.blockedSubmissions ?? 0}. Llamadas: {batchJob.cost?.providerCalls ?? 0}.</p> : null}</section><section className="panel"><h2>Exportación del lote</h2><p className="intro">Solo un lote cerrado puede exportarse.</p><div className="actions"><label><input type="checkbox" checked={exportFormats.includes("csv")} onChange={(event) => setExportFormats((current) => event.target.checked ? [...new Set([...current, "csv"])] : current.filter((item) => item !== "csv"))} /> CSV</label><label><input type="checkbox" checked={exportFormats.includes("xlsx")} onChange={(event) => setExportFormats((current) => event.target.checked ? [...new Set([...current, "xlsx"])] : current.filter((item) => item !== "xlsx"))} /> XLSX</label><label><input type="checkbox" checked={exportFormats.includes("pdf")} onChange={(event) => setExportFormats((current) => event.target.checked ? [...new Set([...current, "pdf"])] : current.filter((item) => item !== "pdf"))} /> PDF</label><label><input type="checkbox" checked={includeOriginal} onChange={(event) => setIncludeOriginal(event.target.checked)} /> Incluir originales</label></div><div className="actions"><button className="button secondary" type="button" disabled={busy || batch.state === "closed" || ["queued", "running", "cancel_requested"].includes(batchJob?.status ?? "")} onClick={finalizeBatch}>Finalizar lote</button><button className="button" type="button" disabled={busy || batch.state !== "closed" || exportFormats.length === 0} onClick={startExport}>Exportar</button></div>{exportJob ? <><p className="intro">Job {exportJob.jobId}: {exportJob.status}, {exportJob.progress.percent}% ({exportJob.progress.phase}). Salidas: {exportJob.outputRefs.length}</p><div className="actions">{["queued", "running"].includes(exportJob.status) ? <button className="button secondary" type="button" onClick={() => updateExportJob("cancel")}>Cancelar</button> : null}{exportJob.status === "failed" && exportJobEtag ? <button className="button secondary" type="button" onClick={() => updateExportJob("retry")}>Reintentar</button> : null}</div></> : null}{exportJob?.outputRefs.map((outputId) => <a className="eyebrow" href={`/api/exports/${outputId}/download`} key={outputId}>Descargar {outputId.slice(0, 8)}</a>)}</section></> : null}
         <div className="detail-grid">
           <div className="panel">
@@ -349,6 +357,7 @@ export default function BatchPage() {
               {selected.snapshotId ? <p className="intro">Snapshot: {selected.snapshotId}</p> : null}
               {reading ? <>
                 <p className="intro">Lectura: {reading.readingId} ({reading.status})</p>
+                {reading.errorCode ? <p className="notice" role="status">No se pudo leer la hoja: {reading.errorCode}. Corrige la causa y vuelve a procesar el lote; no se debe cerrar con una lectura fallida.</p> : null}
                 <div className="page-list" aria-label="Cola de revisión OMR">
                   {reading.rows.filter((row) => row.requiresHumanReview || ["multiple", "ambiguous", "unreadable"].includes(row.status)).map((row) => <div className="page-row" key={row.questionId}>
                     <span>{row.questionId}</span><span>{row.status}</span>
