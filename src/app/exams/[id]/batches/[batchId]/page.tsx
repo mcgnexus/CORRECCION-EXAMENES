@@ -12,6 +12,7 @@ type ResponseRegion = { regionId: string; questionId: string; questionType: "sho
 type Transcription = { transcriptionId: string; questionId: string; literalText: string; normalizedText?: string; correctedText?: string; confidence: number; uncertainSpans: Array<{ text: string; reason: string }>; state: string; etag: string };
 type Evaluation = { evaluationId: string; questionId: string; transcriptionId: string; provider: "gemini" | "deepseek"; criterionScores: Array<{ criterionId: string; points: number; maxPoints: number; evidence: string; incidents: string[] }>; totalPoints: number; maximumPoints: number; explanation: string; state: string };
 type ResponseData = { regions: { regionRevisionId: string; regions: ResponseRegion[] } | null; transcriptions: Transcription[]; evaluations: Evaluation[]; decisions: Array<{ questionId: string; decisionId: string }>; blockingIssues: string[] };
+type Snapshot = { score: number; correct: number; blank: number; incorrect: number; pending: number; blockingIssues: string[]; state: string; openPending?: number };
 type Batch = { batchId: string; state: string; submissionIds: string[]; answerKeyRevisionId: string; templateRevisionId: string; scoringPolicyRevisionId: string };
 type JobProgress = { phase: string; current: number; completed: number; total: number; percent: number; totalSubmissions?: number; completedSubmissions?: number; failedSubmissions?: number; blockedSubmissions?: number; totalPages?: number; completedPages?: number; totalQuestions?: number; completedQuestions?: number; currentSubmissionId?: string; currentPageId?: string; currentQuestionId?: string };
 type BatchJob = { jobId: string; status: string; progress: JobProgress; outputRefs: string[]; errorCode?: string; cost?: { providerCalls?: number; inputTokens?: number; outputTokens?: number; retryCount?: number; amount?: number; currency?: string } };
@@ -48,6 +49,9 @@ export default function BatchPage() {
   const [batchJobEtag, setBatchJobEtag] = useState("");
   const [ownerId, setOwnerId] = useState("");
   const [uploadingStudents, setUploadingStudents] = useState(false);
+  const [wizardStep, setWizardStep] = useState(1);
+  const [answerKey, setAnswerKey] = useState<Record<string, { selectedOptionIds?: string[] }>>({});
+  const [detailSnapshot, setDetailSnapshot] = useState<Snapshot | null>(null);
   const selectedIdRef = useRef<string | null>(null);
 
   const load = useCallback(async () => {
@@ -59,8 +63,9 @@ export default function BatchPage() {
     setSelected(fresh);
     if (fresh) {
       const detailResponse = await fetch(`${base}/${fresh.submissionId}`);
-      const detailPayload = await detailResponse.json() as { data?: { readings?: Reading[] }; error?: { message?: string } };
-      if (detailResponse.ok) setReading(detailPayload.data?.readings?.[0] ?? null);
+      const detailPayload = await detailResponse.json() as { data?: { readings?: Reading[]; snapshot?: Snapshot | null }; error?: { message?: string } };
+      if (detailResponse.ok) { setReading(detailPayload.data?.readings?.[0] ?? null); setDetailSnapshot(detailPayload.data?.snapshot ?? null); }
+      else { setReading(null); setDetailSnapshot(null); }
     } else {
       setSelected(null);
       setReading(null);
@@ -124,6 +129,8 @@ export default function BatchPage() {
     setSelected(submission);
     setIdentity(submission.confirmedIdentity ?? submission.suggestedIdentity ?? "");
     setReading(null);
+    setDetailSnapshot(null);
+    setWizardStep(submission.confirmedIdentity ? 2 : 1);
     const pagesResponse = await fetch(`/api/exams/${params.id}/pages`);
     const pagesPayload = await pagesResponse.json() as { data?: { pages?: Page[] } };
     setPages(pagesPayload.data?.pages?.filter((page) => submission.pageIds.includes(page.pageId)) ?? []);
@@ -138,6 +145,39 @@ export default function BatchPage() {
     setOpenPending(payload.data?.snapshot?.openPending ?? 0);
     await loadResponses(submission.submissionId);
     setMessage(null);
+  }
+
+  useEffect(() => {
+    if (!batch?.answerKeyRevisionId) return;
+    fetch(`/api/exams/${params.id}/revisions/${batch.answerKeyRevisionId}/answer-key`).then(async (response) => {
+      const payload = await response.json() as { data?: { answerKey?: { decisions?: Record<string, { answer?: { selectedOptionIds?: string[] } | string[] }> } } };
+      const decisions = payload.data?.answerKey?.decisions ?? {};
+      const normalized: Record<string, { selectedOptionIds?: string[] }> = {};
+      for (const [questionId, decision] of Object.entries(decisions)) {
+        const raw = decision.answer as { selectedOptionIds?: string[] } | string[] | null;
+        const selected = Array.isArray(raw) ? raw : raw?.selectedOptionIds;
+        normalized[questionId] = { selectedOptionIds: Array.isArray(selected) ? selected.map(String) : undefined };
+      }
+      setAnswerKey(normalized);
+    }).catch(() => setAnswerKey({}));
+  }, [batch?.answerKeyRevisionId, params.id]);
+
+  function comparisonRows(): Array<{ questionId: string; alumno: string; correcta: string; resultado: string }> {
+    const rows = reading?.rows ?? [];
+    return rows.map((row) => {
+      const correcta = answerKey[row.questionId]?.selectedOptionIds ?? [];
+      const alumno = row.selectedOptionIds ?? [];
+      const resultado = alumno.length === 0 ? "En blanco" : alumno.length === 1 && correcta.includes(alumno[0]) ? "Correcto" : "Incorrecto";
+      return { questionId: row.questionId, alumno: alumno.join(", ") || "—", correcta: correcta.join(", ") || "—", resultado };
+    });
+  }
+
+  function stepUnlocked(step: number): boolean {
+    if (!selected) return false;
+    if (step === 1) return true;
+    if (step === 2) return Boolean(selected.confirmedIdentity);
+    if (step === 3) return Boolean(reading && !reading.errorCode && !reading.rows.some((row) => row.requiresHumanReview || ["multiple", "ambiguous", "unreadable"].includes(row.status)));
+    return Boolean(selected.confirmedIdentity && reading && !reading.errorCode && !reading.rows.some((row) => row.requiresHumanReview || ["multiple", "ambiguous", "unreadable"].includes(row.status)));
   }
 
   async function loadResponses(submissionId = selected?.submissionId) {
@@ -397,25 +437,53 @@ export default function BatchPage() {
             {selected ? <div className="actions"><button className="button secondary" type="button" disabled={busy} onClick={addSubmissionFromPageIds}>Registrar assets de nuevo</button><button className="button" type="button" disabled={busy} onClick={startOmr}>Iniciar lectura OMR</button></div> : null}
           </div>
           <div className="panel">
-            <h2>Decisión</h2>
+            <h2>Asistente de corrección</h2>
             {selected ? <>
-              <label className="label">Identidad confirmada<input className="input" value={identity} onChange={(event) => setIdentity(event.target.value)} /></label>
-              {selected.suggestedIdentity && !selected.confirmedIdentity ? <p className="intro">Nombre leído por IA: «{selected.suggestedIdentity}» ({Math.round((selected.identityConfidence ?? 0) * 100)}% de confianza). Ya está en el campo: revisa la ortografía y pulsa Confirmar identidad.</p> : null}
-              {selected.identitySource === "identity_unreadable" && !selected.confirmedIdentity ? <p className="intro">No se pudo leer el nombre de forma automática: escríbelo y confirma.</p> : null}
-              <div className="actions"><button className="button secondary" type="button" disabled={busy || !identity} onClick={() => postAction({ action: "confirm-identity", identity })}>Confirmar identidad</button><button className="button" type="button" disabled={busy || (selected.state !== "review" && selected.state !== "review_scores") || !selected.confirmedIdentity} onClick={() => postAction({ action: "score" })}>Puntuar entrega</button><button className="button" type="button" disabled={busy || !selected.snapshotId} onClick={closeSubmission}>Cerrar entrega</button></div>
-              {selected.snapshotId ? <p className="intro">Snapshot: {selected.snapshotId}</p> : null}
-              {reading ? <>
-                <p className="intro">Lectura: {reading.readingId} ({reading.status})</p>
-                {reading.errorCode ? <p className="notice" role="status">No se pudo leer la hoja: {reading.errorCode}. Corrige la causa y vuelve a procesar el lote; no se debe cerrar con una lectura fallida.</p> : null}
-                <div className="page-list" aria-label="Cola de revisión OMR">
-                  {reading.rows.filter((row) => row.requiresHumanReview || ["multiple", "ambiguous", "unreadable"].includes(row.status)).map((row) => <div className="page-row" key={row.questionId}>
-                    <span>{row.questionId}</span><span>{row.status}</span>
-                    <span className="actions">{row.candidateOptionIds.map((optionId) => <button className="button secondary" type="button" disabled={busy} key={optionId} onClick={() => resolveRow(row, optionId)}>Resolver {optionId}</button>)}</span>
-                  </div>)}
-                </div>
+              <div className="actions" aria-label="Pasos del asistente">
+                {[1, 2, 3, 4].map((step) => <button className={`button ${wizardStep === step ? "" : "secondary"}`} type="button" key={step} onClick={() => setWizardStep(step)}>Paso {step}: {["Nombre (OCR)", "Respuestas (OMR)", "Comparación", "Puntuación"][step - 1]}{stepUnlocked(step) ? " ✓" : ""}</button>)}
+              </div>
+              {wizardStep === 1 ? <>
+                <h3>Paso 1 · OCR del nombre</h3>
+                <label className="label">Identidad confirmada<input className="input" value={identity} onChange={(event) => setIdentity(event.target.value)} /></label>
+                {selected.suggestedIdentity ? <p className="intro">Nombre leído por IA: «{selected.suggestedIdentity}» ({Math.round((selected.identityConfidence ?? 0) * 100)}% de confianza). Revisa la ortografía y guarda.</p> : <p className="intro">No se pudo leer el nombre de forma automática: escríbelo y guarda.</p>}
+                {selected.confirmedIdentity ? <p className="intro">Guardado como: <strong>{selected.confirmedIdentity}</strong></p> : null}
+                <div className="actions"><button className="button" type="button" disabled={busy || !identity} onClick={() => postAction({ action: "confirm-identity", identity })}>Guardar identidad</button><button className="button secondary" type="button" disabled={!stepUnlocked(2)} onClick={() => setWizardStep(2)}>Siguiente: respuestas</button></div>
               </> : null}
-              <p className="intro">Las filas ambiguas, dobles o ilegibles requieren decisión en la cola de revisión antes de puntuar.</p>
-              {(openPending > 0 || selected.responseBlockingIssues?.some((issue) => issue.startsWith("open_"))) ? <section className="panel">
+              {wizardStep === 2 ? <>
+                <h3>Paso 2 · Respuestas OMR</h3>
+                {reading ? <>
+                  <p className="intro">Lectura: {reading.readingId} ({reading.status}){reading.errorCode ? ` · ERROR: ${reading.errorCode}` : ""}</p>
+                  {reading.errorCode ? <p className="notice" role="status">No se pudo leer la hoja: {reading.errorCode}. Corrige la causa y vuelve a procesar el lote.</p> : null}
+                  <div className="page-list" aria-label="Respuestas leídas">
+                    {reading.rows.map((row) => <div className="page-row" key={row.questionId} style={row.requiresHumanReview || ["multiple", "ambiguous", "unreadable"].includes(row.status) ? { border: "2px solid #d95d39" } : undefined}>
+                      <span>{row.questionId}</span><span>{row.status}</span><span>{row.selectedOptionIds.join(", ") || "—"}</span>
+                      <span className="actions">{row.candidateOptionIds.map((optionId) => <button className="button secondary" type="button" disabled={busy} key={optionId} onClick={() => resolveRow(row, optionId)}>Resolver {optionId}</button>)}</span>
+                    </div>)}
+                  </div>
+                  <p className="intro">Las filas resaltadas (ambiguas, dobles o ilegibles) requieren decisión antes de continuar.</p>
+                </> : <p className="intro">No hay lectura OMR. Procesa el lote o pulsa «Iniciar lectura OMR» en el panel Entregas.</p>}
+                <div className="actions"><button className="button secondary" type="button" onClick={() => setWizardStep(1)}>Anterior</button><button className="button secondary" type="button" disabled={!stepUnlocked(3)} onClick={() => setWizardStep(3)}>Siguiente: comparación</button></div>
+              </> : null}
+              {wizardStep === 3 ? <>
+                <h3>Paso 3 · Comparación con el solucionario</h3>
+                {Object.keys(answerKey).length === 0 ? <p className="notice" role="status">No se pudo cargar el solucionario de este lote.</p> : null}
+                <div className="page-list" aria-label="Tabla de comparación">
+                  <div className="page-row"><span>Pregunta</span><span>Alumno</span><span>Correcta</span><span>Resultado</span></div>
+                  {comparisonRows().map((row) => <div className="page-row" key={row.questionId}><span>{row.questionId}</span><span>{row.alumno}</span><span>{row.correcta}</span><span>{row.resultado}</span></div>)}
+                </div>
+                <div className="actions"><button className="button secondary" type="button" onClick={() => setWizardStep(2)}>Anterior</button><button className="button" type="button" disabled={!stepUnlocked(4)} onClick={() => setWizardStep(4)}>Siguiente: puntuación</button></div>
+              </> : null}
+              {wizardStep === 4 ? <>
+                <h3>Paso 4 · Puntuación y cierre</h3>
+                {!selected.confirmedIdentity ? <p className="notice" role="status">Falta confirmar la identidad (paso 1).</p> : null}
+                {reading?.errorCode ? <p className="notice" role="status">La lectura OMR falló (paso 2): {reading.errorCode}.</p> : null}
+                {reading?.rows.some((row) => row.requiresHumanReview || ["multiple", "ambiguous", "unreadable"].includes(row.status)) ? <p className="notice" role="status">Hay filas OMR sin resolver (paso 2).</p> : null}
+                {selected.responseBlockingIssues?.length ? <p className="notice" role="status">Incidencias pendientes: {selected.responseBlockingIssues.slice(0, 5).join(", ")}{selected.responseBlockingIssues.length > 5 ? ` y ${selected.responseBlockingIssues.length - 5} más` : ""}</p> : null}
+                {detailSnapshot ? <p className="intro">Última puntuación: <strong>{detailSnapshot.score}</strong> · correctas {detailSnapshot.correct} · incorrectas {detailSnapshot.incorrect} · en blanco {detailSnapshot.blank} · pendientes {detailSnapshot.pending}</p> : <p className="intro">Todavía no hay puntuación para esta entrega.</p>}
+                <div className="actions"><button className="button secondary" type="button" onClick={() => setWizardStep(3)}>Anterior</button><button className="button" type="button" disabled={busy || !selected.confirmedIdentity} onClick={() => postAction({ action: "score" })}>Puntuar entrega</button><button className="button" type="button" disabled={busy || !selected.snapshotId} onClick={closeSubmission}>Cerrar entrega</button></div>
+                {selected.snapshotId ? <p className="intro">Snapshot: {selected.snapshotId}</p> : null}
+              </> : null}
+              {(wizardStep === 2 || wizardStep === 4) && (openPending > 0 || selected.responseBlockingIssues?.some((issue) => issue.startsWith("open_"))) ? <section className="panel">
                 <h3>Respuestas abiertas</h3>
                 <p className="intro">Delimita una región por pregunta. El recorte se genera de forma privada en el servidor.</p>
                 <div className="form"><input className="input" placeholder="ID de pregunta" value={regionQuestionId} onChange={(event) => setRegionQuestionId(event.target.value)} /><select className="input" value={regionQuestionType} onChange={(event) => setRegionQuestionType(event.target.value as "short_text" | "essay")}><option value="short_text">short_text</option><option value="essay">essay</option></select><select className="input" value={regionPageId} onChange={(event) => setRegionPageId(event.target.value)}>{pages.map((page) => <option value={page.pageId} key={page.pageId}>Página {page.pageNumber}</option>)}</select></div>
