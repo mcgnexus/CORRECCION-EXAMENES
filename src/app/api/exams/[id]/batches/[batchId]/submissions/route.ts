@@ -34,6 +34,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     if (input.assetIds.length > batch.value.maxPages) throw new AppError("BATCH_PAGE_LIMIT", "La entrega supera el límite de páginas del lote.", 413);
     const assets = await Promise.all(input.assetIds.map((assetId) => getAssetRepository().getWithMeta(ownerId, assetId)));
     if (assets.some((asset) => !asset || asset.asset.state !== "validated" || asset.asset.examId !== params.id)) throw new AppError("INVALID_PAGE_ASSET", "Algunos assets no son válidos para este examen.", 400);
+    if (assets.some((asset) => !asset?.asset.mimeType.startsWith("image/"))) throw new AppError("STUDENT_UPLOAD_IMAGE_REQUIRED", "Las entregas de alumnos solo admiten imágenes JPEG, PNG o WebP.", 400);
     const pages = await getDocumentPagesRepository().initialize(ownerId, params.id);
     const pageIds = input.assetIds.map((assetId) => pages.manifest.pages.find((page) => page.sourceAssetId === assetId)?.pageId ?? assetId);
     const submission = await getSubmissionRepository().create({ batchId: params.batchId, examId: params.id, ownerId, pageIds, assetIds: input.assetIds });

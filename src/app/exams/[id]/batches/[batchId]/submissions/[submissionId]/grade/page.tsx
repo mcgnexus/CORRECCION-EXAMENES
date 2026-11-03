@@ -46,18 +46,20 @@ export default function GradeSubmissionPage() {
   const [allSubmissionsClosed, setAllSubmissionsClosed] = useState(false);
 
   const load = useCallback(async () => {
-    const [detailResponse, batchResponse, pagesResponse, responsesResponse] = await Promise.all([
-      fetch(submissionUrl), fetch(root), fetch(`/api/exams/${params.id}/pages`), fetch(`${submissionUrl}/responses`),
+    const [detailResponse, batchResponse, responsesResponse] = await Promise.all([
+      fetch(submissionUrl), fetch(root), fetch(`${submissionUrl}/responses`),
     ]);
     const detail = await detailResponse.json() as { data?: { submission: Submission; snapshot: Snapshot | null }; error?: { message?: string } };
     const batchPayload = await batchResponse.json() as { data?: Batch };
-    const pagesPayload = await pagesResponse.json() as { data?: { pages?: Page[] } };
     const responses = await responsesResponse.json() as { data?: { regions: { regionRevisionId: string; regions: Region[] } | null; transcriptions: Transcription[]; evaluations: Evaluation[]; blockingIssues: string[] } };
     if (!detailResponse.ok || !detail.data || !batchResponse.ok || !batchPayload.data) throw new Error(detail.error?.message ?? "No se pudo cargar la calificación.");
     setSubmission(detail.data.submission);
     setBatch(batchPayload.data);
     setSnapshot(detail.data.snapshot);
-    setPages((pagesPayload.data?.pages ?? []).filter((page) => detail.data!.submission.pageIds.includes(page.pageId)));
+    setPages(detail.data.submission.pageIds.flatMap((pageId, index) => {
+      const sourceAssetId = detail.data!.submission.assetIds[index];
+      return sourceAssetId ? [{ pageId, sourceAssetId, pageNumber: 1, rotation: 0 as const }] : [];
+    }));
     setTranscriptions(responses.data?.transcriptions ?? []);
     setEvaluations(responses.data?.evaluations ?? []);
     const activeRegions = responses.data?.regions;

@@ -56,7 +56,7 @@ export default function ExamDetailPage() {
       try {
         setProgress((current) => ({ ...current, [assetId]: 0 }));
         const uploaded = await uploadExamAsset({ pathname, file, authorizeUrl: `/api/exams/${exam.examId}/assets/authorize` });
-        const completion = await fetch(`/api/exams/${exam.examId}/assets/complete`, { method: "POST", headers: { "content-type": "application/json", origin: window.location.origin }, body: JSON.stringify({ assetId, pathname: uploaded.pathname, contentType: file.type }) });
+        const completion = await fetch(`/api/exams/${exam.examId}/assets/complete`, { method: "POST", headers: { "content-type": "application/json", origin: window.location.origin }, body: JSON.stringify({ assetId, pathname: uploaded.pathname, contentType: file.type, purpose: "exam_source" }) });
         if (!completion.ok) throw new Error("La subida terminó, pero no pudo validarse el asset.");
         setProgress((current) => ({ ...current, [assetId]: 100 }));
       } catch (error) {

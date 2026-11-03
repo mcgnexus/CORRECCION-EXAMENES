@@ -155,6 +155,10 @@ export default function OmrTemplatePage() {
   }
 
   async function saveTemplate() {
+    if (!sourceReady) {
+      setMessage("SOURCE_NOT_READY: La fuente actual no tiene un solucionario IA aprobado y vigente. Actualiza y aprueba las respuestas en la pantalla 2 antes de guardar la plantilla.");
+      return;
+    }
     const anchorsNormalized = manualAnchors.length === 4 ? manualAnchors : result?.anchorsNormalized;
     const columns = result?.columns ?? [];
     const rows = result?.rows ?? [];
@@ -202,9 +206,9 @@ export default function OmrTemplatePage() {
         algorithmVersion: "omr-1-manual",
       }),
     });
-    const payload = await response.json() as { data?: { templateId: string }; error?: { message?: string } };
+    const payload = await response.json() as { data?: { templateId: string }; error?: { code?: string; message?: string } };
     setBusy(false);
-    if (!response.ok || !payload.data) { setMessage(payload.error?.message ?? "No se pudo guardar la plantilla."); return; }
+    if (!response.ok || !payload.data) { setMessage(`${payload.error?.code ?? "ERROR"}: ${payload.error?.message ?? "No se pudo guardar la plantilla."}`); return; }
     setTemplateId(payload.data.templateId);
     setTemplateEtag(response.headers.get("etag"));
     setTemplateState("draft");
@@ -274,8 +278,8 @@ export default function OmrTemplatePage() {
         {approvedTemplate && !calibrateAgain ? <section className="panel">
           <h2>Plantilla OMR aprobada</h2>
           <p>{approvedTemplate.templateId} · actualizada {new Date(approvedTemplate.updatedAt).toLocaleString("es-ES")}</p>
-          {!sourceReady ? <p className="notice" role="status">La plantilla no se puede usar hasta aprobar las respuestas IA de la fuente actual en la pantalla 2.</p> : null}
-          <div className="actions"><a className="button" aria-disabled={!sourceReady} href={sourceReady ? `/exams/${params.id}/students` : undefined} onClick={(event) => { if (!sourceReady) event.preventDefault(); }}>Siguiente: respuestas de alumnos</a><button className="button secondary" type="button" onClick={() => setCalibrateAgain(true)}>Recalibrar formato</button></div>
+          {!sourceReady ? <p className="notice" role="status">SOURCE_NOT_READY: La fuente actual necesita un solucionario IA aprobado. <a href={`/exams/${params.id}/answers`}>Actualizar respuestas en la pantalla 2</a>.</p> : null}
+          <div className="actions"><a className="button" aria-disabled={!sourceReady} href={sourceReady ? `/exams/${params.id}/students` : undefined} onClick={(event) => { if (!sourceReady) event.preventDefault(); }}>Siguiente: respuestas de alumnos</a><button className="button secondary" type="button" onClick={() => { if (window.confirm("Recalibrar crea una configuración nueva y puede exigir repetir la plantilla para los lotes siguientes. ¿Continuar?")) setCalibrateAgain(true); }}>Recalibrar formato</button></div>
         </section> : null}
         {templateId ? <p className="notice">Plantilla: {templateId} — estado: {templateState ?? "desconocido"}</p> : null}
         {!approvedTemplate || calibrateAgain ? <>
@@ -294,7 +298,8 @@ export default function OmrTemplatePage() {
           <div className="actions">
             <button className="button" type="button" disabled={!imageBase64 || busy} onClick={analyze}>{busy ? "Analizando..." : "Analizar hoja"}</button>
             <button className="button secondary" type="button" disabled={!result || manualAnchors.length === 0} onClick={() => { setManualAnchors([]); setNextAnchor(0); }}>Reiniciar anclas</button>
-            <button className="button" type="button" disabled={busy || !result} onClick={saveTemplate}>Guardar plantilla</button>
+            <button className="button" type="button" disabled={busy || !result || !sourceReady} onClick={saveTemplate}>Guardar plantilla</button>
+            {!sourceReady ? <p className="notice" role="status">Falta aprobar las respuestas IA de la fuente actual. <a href={`/exams/${params.id}/answers`}>Resolver en la pantalla 2</a>.</p> : null}
             <button className="button secondary" type="button" disabled={busy || !templateId || templateState === "approved"} onClick={approveTemplate}>{templateState === "approved" ? "Plantilla aprobada" : "Aprobar plantilla"}</button>
           </div>
         </div>

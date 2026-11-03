@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { PDFDocument } from "pdf-lib";
 import { inspectUpload } from "../src/lib/upload-validation";
+import { validateUploadPurpose } from "../src/lib/asset-completion";
 
 const onePixelPng = Uint8Array.from(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64"));
 
@@ -23,5 +24,11 @@ describe("validación de uploads", () => {
     const document = await PDFDocument.create();
     for (let page = 0; page < 31; page += 1) document.addPage([100, 100]);
     await expect(inspectUpload(new Uint8Array(await document.save()), "application/pdf")).rejects.toMatchObject({ code: "BATCH_PAGE_LIMIT" });
+  });
+
+  it("admite PDF para fuente y solo JPEG, PNG o WebP para entregas", () => {
+    expect(() => validateUploadPurpose("exam_source", "application/pdf")).not.toThrow();
+    expect(() => validateUploadPurpose("student_submission", "image/png")).not.toThrow();
+    expect(() => validateUploadPurpose("student_submission", "application/pdf")).toThrowError(expect.objectContaining({ code: "STUDENT_UPLOAD_IMAGE_REQUIRED" }));
   });
 });

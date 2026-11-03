@@ -51,7 +51,6 @@ export default function BatchPage() {
   const [ownerId, setOwnerId] = useState("");
   const [uploadingStudents, setUploadingStudents] = useState(false);
   const [wizardStep, setWizardStep] = useState(1);
-  const [answerKey, setAnswerKey] = useState<Record<string, { selectedOptionIds?: string[] }>>({});
   const [detailSnapshot, setDetailSnapshot] = useState<Snapshot | null>(null);
   const selectedIdRef = useRef<string | null>(null);
 
@@ -89,7 +88,7 @@ export default function BatchPage() {
       const pathname = `owners/${ownerId}/exams/${params.id}/assets/${assetId}/original`;
       try {
         const uploaded = await uploadExamAsset({ pathname, file, authorizeUrl: `/api/exams/${params.id}/assets/authorize` });
-        const completion = await fetch(`/api/exams/${params.id}/assets/complete`, { method: "POST", headers: { "content-type": "application/json", origin: window.location.origin }, body: JSON.stringify({ assetId, pathname: uploaded.pathname, contentType: file.type }) });
+        const completion = await fetch(`/api/exams/${params.id}/assets/complete`, { method: "POST", headers: { "content-type": "application/json", origin: window.location.origin }, body: JSON.stringify({ assetId, pathname: uploaded.pathname, contentType: file.type, purpose: "student_submission" }) });
         if (!completion.ok) throw new Error("La subida terminó, pero no pudo validarse el archivo.");
         const submission = await fetch(base, { method: "POST", headers: { "content-type": "application/json", origin: window.location.origin }, body: JSON.stringify({ assetIds: [assetId] }) });
         const submissionPayload = await submission.json() as { error?: { message?: string } };
@@ -132,9 +131,10 @@ export default function BatchPage() {
     setReading(null);
     setDetailSnapshot(null);
     setWizardStep(submission.confirmedIdentity ? 2 : 1);
-    const pagesResponse = await fetch(`/api/exams/${params.id}/pages`);
-    const pagesPayload = await pagesResponse.json() as { data?: { pages?: Page[] } };
-    setPages(pagesPayload.data?.pages?.filter((page) => submission.pageIds.includes(page.pageId)) ?? []);
+    setPages(submission.pageIds.flatMap((pageId, index) => {
+      const sourceAssetId = submission.assetIds[index];
+      return sourceAssetId ? [{ pageId, sourceAssetId, pageNumber: 1, rotation: 0 as const }] : [];
+    }));
     setRegionPageId(submission.pageIds[0] ?? "");
     const batchesResponse = await fetch(`/api/exams/${params.id}/batches`);
     const batchesPayload = await batchesResponse.json() as { data?: Array<{ batchId: string; answerKeyRevisionId: string }> };
@@ -146,31 +146,6 @@ export default function BatchPage() {
     setOpenPending(payload.data?.snapshot?.openPending ?? 0);
     await loadResponses(submission.submissionId);
     setMessage(null);
-  }
-
-  useEffect(() => {
-    if (!batch?.answerKeyRevisionId) return;
-    fetch(`/api/exams/${params.id}/revisions/${batch.answerKeyRevisionId}/answer-key`).then(async (response) => {
-      const payload = await response.json() as { data?: { answerKey?: { decisions?: Record<string, { answer?: { selectedOptionIds?: string[] } | string[] }> } } };
-      const decisions = payload.data?.answerKey?.decisions ?? {};
-      const normalized: Record<string, { selectedOptionIds?: string[] }> = {};
-      for (const [questionId, decision] of Object.entries(decisions)) {
-        const raw = decision.answer as { selectedOptionIds?: string[] } | string[] | null;
-        const selected = Array.isArray(raw) ? raw : raw?.selectedOptionIds;
-        normalized[questionId] = { selectedOptionIds: Array.isArray(selected) ? selected.map(String) : undefined };
-      }
-      setAnswerKey(normalized);
-    }).catch(() => setAnswerKey({}));
-  }, [batch?.answerKeyRevisionId, params.id]);
-
-  function comparisonRows(): Array<{ questionId: string; alumno: string; correcta: string; resultado: string }> {
-    const rows = reading?.rows ?? [];
-    return rows.map((row) => {
-      const correcta = answerKey[row.questionId]?.selectedOptionIds ?? [];
-      const alumno = row.selectedOptionIds ?? [];
-      const resultado = alumno.length === 0 ? "En blanco" : alumno.length === 1 && correcta.includes(alumno[0]) ? "Correcto" : "Incorrecto";
-      return { questionId: row.questionId, alumno: alumno.join(", ") || "—", correcta: correcta.join(", ") || "—", resultado };
-    });
   }
 
   function stepUnlocked(step: number): boolean {
@@ -428,7 +403,8 @@ export default function BatchPage() {
         <p className="intro">Sube varios archivos a la cola. Luego abre cada alumno para confirmar OCR/OMR, comparar y calificarlo de forma individual.</p>
         {message ? <p className="notice" role="status">{message}</p> : null}
         {batch ? <section className="panel"><h2>Lote {batch.batchId.slice(0, 8)} · {batch.state}</h2>
-          <label className="label">Subir exámenes de alumnos (PDF o imagen)<input className="input" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" multiple disabled={uploadingStudents || batch.state === "closed"} onChange={uploadStudentExams} /></label>
+          <label className="label">Subir imágenes de entregas de alumnos (JPEG, PNG o WebP)<input className="input" type="file" accept="image/jpeg,image/png,image/webp" multiple disabled={uploadingStudents || batch.state === "closed"} onChange={uploadStudentExams} /></label>
+          <p className="intro">Las imágenes de alumnos se guardan en la entrega y no modifican las páginas fuente del examen.</p>
           {uploadingStudents ? <p className="intro">Subiendo y registrando entregas...</p> : null}
           {!submissions.length ? <p className="intro">La cola está vacía.</p> : <div className="page-list">{submissions.map((submission) => <a className="page-row" href={`/exams/${params.id}/batches/${params.batchId}/submissions/${submission.submissionId}/responses`} key={submission.submissionId}>
             <span>{submission.confirmedIdentity ?? submission.suggestedIdentity ?? `Alumno ${submission.submissionId.slice(0, 8)}`}</span>
@@ -468,16 +444,17 @@ export default function BatchPage() {
         <div className="detail-grid">
           <div className="panel">
             <h2>Entregas</h2>
-            <label className="label">Subir exámenes de alumnos (PDF o imagen)<input className="input" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" multiple disabled={uploadingStudents} onChange={uploadStudentExams} /></label>
+            <label className="label">Subir imágenes de entregas de alumnos (JPEG, PNG o WebP)<input className="input" type="file" accept="image/jpeg,image/png,image/webp" multiple disabled={uploadingStudents} onChange={uploadStudentExams} /></label>
+            <p className="intro">Las imágenes de alumnos se guardan en la entrega y no modifican las páginas fuente del examen.</p>
             {uploadingStudents ? <p className="intro">Subiendo y registrando entregas...</p> : null}
             <div className="page-list">{submissions.map((submission) => <div className={`page-row ${selected?.submissionId === submission.submissionId ? "selected" : ""}`} key={submission.submissionId} onClick={() => openSubmission(submission)}><span>#{submission.submissionId.slice(0, 8)}</span><span>{submission.confirmedIdentity ?? submission.suggestedIdentity ?? "sin identidad"}</span><span className="eyebrow">{stepOf(submission)}</span></div>)}</div>
-            {selected ? <div className="actions"><button className="button secondary" type="button" disabled={busy} onClick={addSubmissionFromPageIds}>Registrar assets de nuevo</button><button className="button" type="button" disabled={busy} onClick={startOmr}>Iniciar lectura OMR</button></div> : null}
+            {selected ? <div className="actions"><a className="button" href={`${base}/${selected.submissionId}/responses`}>Abrir revisión de lectura</a><button className="button secondary" type="button" disabled={busy} onClick={() => startOmr()}>Reprocesar lectura OMR</button></div> : null}
           </div>
           <div className="panel">
             {selected ? <button className="button secondary" type="button" onClick={() => { selectedIdRef.current = null; setSelected(null); setReading(null); setDetailSnapshot(null); setMessage(null); }}>← Volver al lote</button> : null}
             <h2>Asistente de corrección</h2>
             {selected ? <>
-              <p className="eyebrow">Pantalla {wizardStep} de 4 · {["Nombre (OCR)", "Respuestas (OMR)", "Comparación", "Puntuación"][wizardStep - 1]}</p>
+              <p className="eyebrow">Revisión de entrega · {wizardStep === 1 ? "Identidad" : "Lectura OMR"}</p>
               {wizardStep === 1 ? <>
                 <h3>Paso 1 · OCR del nombre</h3>
                 <label className="label">Identidad confirmada<input className="input" value={identity} onChange={(event) => setIdentity(event.target.value)} /></label>
@@ -498,28 +475,9 @@ export default function BatchPage() {
                   </div>
                   <p className="intro">Las filas resaltadas (ambiguas, dobles o ilegibles) requieren decisión antes de continuar.</p>
                 </> : <p className="intro">No hay lectura OMR. Procesa el lote o pulsa «Iniciar lectura OMR» en el panel Entregas.</p>}
-                <div className="actions"><button className="button secondary" type="button" onClick={() => setWizardStep(1)}>Anterior</button><button className="button secondary" type="button" disabled={!stepUnlocked(3)} onClick={() => setWizardStep(3)}>Siguiente: comparación</button></div>
+                <div className="actions"><button className="button secondary" type="button" onClick={() => setWizardStep(1)}>Anterior</button><a className="button" href={`${base}/${selected.submissionId}/responses`}>Continuar a respuestas del alumno</a><a className="button secondary" href={`${base}/${selected.submissionId}/compare`}>Ir a comparación</a><a className="button secondary" href={`${base}/${selected.submissionId}/grade`}>Ir a calificación</a></div>
               </> : null}
-              {wizardStep === 3 ? <>
-                <h3>Paso 3 · Comparación con el solucionario</h3>
-                {Object.keys(answerKey).length === 0 ? <p className="notice" role="status">No se pudo cargar el solucionario de este lote.</p> : null}
-                <div className="page-list" aria-label="Tabla de comparación">
-                  <div className="page-row"><span>Pregunta</span><span>Alumno</span><span>Correcta</span><span>Resultado</span></div>
-                  {comparisonRows().map((row) => <div className="page-row" key={row.questionId}><span>{row.questionId}</span><span>{row.alumno}</span><span>{row.correcta}</span><span>{row.resultado}</span></div>)}
-                </div>
-                <div className="actions"><button className="button secondary" type="button" onClick={() => setWizardStep(2)}>Anterior</button><button className="button" type="button" disabled={!stepUnlocked(4)} onClick={() => setWizardStep(4)}>Siguiente: puntuación</button></div>
-              </> : null}
-              {wizardStep === 4 ? <>
-                <h3>Paso 4 · Puntuación y cierre</h3>
-                {!selected.confirmedIdentity ? <p className="notice" role="status">Falta confirmar la identidad (paso 1).</p> : null}
-                {reading?.errorCode ? <p className="notice" role="status">La lectura OMR falló (paso 2): {reading.errorCode}.</p> : null}
-                {reading?.rows.some((row) => row.requiresHumanReview || ["multiple", "ambiguous", "unreadable"].includes(row.status)) ? <p className="notice" role="status">Hay filas OMR sin resolver (paso 2).</p> : null}
-                {selected.responseBlockingIssues?.length ? <p className="notice" role="status">Incidencias pendientes: {selected.responseBlockingIssues.slice(0, 5).join(", ")}{selected.responseBlockingIssues.length > 5 ? ` y ${selected.responseBlockingIssues.length - 5} más` : ""}</p> : null}
-                {detailSnapshot ? <p className="intro">Última puntuación: <strong>{detailSnapshot.score}</strong> · correctas {detailSnapshot.correct} · incorrectas {detailSnapshot.incorrect} · en blanco {detailSnapshot.blank} · pendientes {detailSnapshot.pending}</p> : <p className="intro">Todavía no hay puntuación para esta entrega.</p>}
-                <div className="actions"><button className="button secondary" type="button" onClick={() => setWizardStep(3)}>Anterior</button><button className="button" type="button" disabled={busy || !selected.confirmedIdentity} onClick={() => postAction({ action: "score" })}>Puntuar entrega</button><button className="button" type="button" disabled={busy || !selected.snapshotId} onClick={closeSubmission}>Cerrar entrega</button></div>
-                {selected.snapshotId ? <p className="intro">Snapshot: {selected.snapshotId}</p> : null}
-              </> : null}
-              {(wizardStep === 2 || wizardStep === 4) && (openPending > 0 || selected.responseBlockingIssues?.some((issue) => issue.startsWith("open_"))) ? <section className="panel">
+              {wizardStep === 2 && (openPending > 0 || selected.responseBlockingIssues?.some((issue) => issue.startsWith("open_"))) ? <section className="panel">
                 <h3>Respuestas abiertas</h3>
                 <p className="intro">Delimita una región por pregunta. El recorte se genera de forma privada en el servidor.</p>
                 <div className="form"><input className="input" placeholder="ID de pregunta" value={regionQuestionId} onChange={(event) => setRegionQuestionId(event.target.value)} /><select className="input" value={regionQuestionType} onChange={(event) => setRegionQuestionType(event.target.value as "short_text" | "essay")}><option value="short_text">short_text</option><option value="essay">essay</option></select><select className="input" value={regionPageId} onChange={(event) => setRegionPageId(event.target.value)}>{pages.map((page) => <option value={page.pageId} key={page.pageId}>Página {page.pageNumber}</option>)}</select></div>

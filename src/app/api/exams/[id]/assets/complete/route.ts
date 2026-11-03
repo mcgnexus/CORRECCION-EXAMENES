@@ -3,7 +3,7 @@ import { assertSameOrigin, requireOwner } from "@/lib/auth";
 import { errorResponse } from "@/lib/errors";
 import { completeUploadedAsset } from "@/lib/asset-completion";
 
-const bodySchema = z.object({ assetId: z.string().uuid(), pathname: z.string().min(1), contentType: z.string().min(1).optional() });
+const bodySchema = z.object({ assetId: z.string().uuid(), pathname: z.string().min(1), contentType: z.string().min(1).optional(), purpose: z.enum(["exam_source", "student_submission"]) });
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   const requestId = crypto.randomUUID();

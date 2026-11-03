@@ -3,7 +3,7 @@ import { z } from "zod";
 import { assertSameOrigin, requireOwner } from "@/lib/auth";
 import { AppError, errorResponse } from "@/lib/errors";
 import { responseRectSchema } from "@/domain/phase4-schemas";
-import { getAnswerKeyRepository, getAssetRepository, getBatchRepository, getDocumentPagesRepository, getExamRevisionRepository, getResponseRegionRepository, getStructureProposalRepository, getSubmissionRepository } from "@/repositories";
+import { getAnswerKeyRepository, getAssetRepository, getBatchRepository, getExamRevisionRepository, getResponseRegionRepository, getStructureProposalRepository, getSubmissionRepository } from "@/repositories";
 import { getBlobStore } from "@/repositories/blob-store";
 import { cropResponseRegion } from "@/lib/response-crop";
 
@@ -57,8 +57,6 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const batch = await getBatchRepository().get(ownerId, params.id, params.batchId);
     if (!batch) throw new AppError("BATCH_NOT_FOUND", "Lote no encontrado.", 404);
     const questions = await loadQuestions(ownerId, params.id, batch.value.answerKeyRevisionId);
-    const pages = await getDocumentPagesRepository().getWithMeta(ownerId, params.id);
-    if (!pages) throw new AppError("PAGE_MANIFEST_NOT_FOUND", "No existe el manifiesto de páginas.", 409);
     const seen = new Set<string>();
     const assets = getAssetRepository();
     const blobs = getBlobStore();
@@ -68,14 +66,13 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       seen.add(`${item.questionId}:${item.order}`);
       const question = questions.get(item.questionId);
       if (!question || question.type !== item.questionType) throw new AppError("QUESTION_TYPE_MISMATCH", "La región no coincide con una pregunta abierta.", 400);
-      if (!submission.value.pageIds.includes(item.pageId) || !submission.value.assetIds.includes(item.sourceAssetId)) throw new AppError("RESPONSE_PAGE_SCOPE_MISMATCH", "La región no pertenece a la entrega.", 400);
-      const page = pages.manifest.pages.find((candidate) => candidate.pageId === item.pageId && candidate.sourceAssetId === item.sourceAssetId);
-      if (!page) throw new AppError("PAGE_NOT_FOUND", "La página no pertenece al asset indicado.", 400);
+      const pageIndex = submission.value.pageIds.indexOf(item.pageId);
+      if (pageIndex < 0 || submission.value.assetIds[pageIndex] !== item.sourceAssetId) throw new AppError("RESPONSE_PAGE_SCOPE_MISMATCH", "La región no pertenece a una imagen de esta entrega.", 400);
       const asset = await assets.getWithMeta(ownerId, item.sourceAssetId);
       if (!asset || asset.asset.examId !== params.id || asset.asset.state !== "validated") throw new AppError("INVALID_PAGE_ASSET", "El asset de la región no es válido.", 400);
       const stored = await blobs.get(asset.asset.blobPath);
       if (!stored) throw new AppError("ASSET_CONTENT_NOT_FOUND", "No se pudo leer el asset de la página.", 404);
-      const cropped = await cropResponseRegion({ bytes: stored.body, mimeType: stored.contentType, pageNumber: page.pageNumber, rotation: page.rotation, rect: item.rect });
+      const cropped = await cropResponseRegion({ bytes: stored.body, mimeType: stored.contentType, pageNumber: 1, rotation: 0, rect: item.rect });
       const cropAssetId = randomUUID();
       const cropPath = `owners/${ownerId}/exams/${params.id}/assets/${cropAssetId}/derived/response-region.png`;
       await blobs.put(cropPath, cropped.png, "image/png", { ifNoneMatch: true });
