@@ -26,7 +26,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
         },
         requestId,
       },
-      { headers: { "x-request-id": requestId, etag: answerKey?.etag ?? revision.etag } },
+      { headers: { "x-request-id": requestId, etag: answerKey?.etag ?? revision.etag, "cache-control": "no-store" } },
     );
   } catch (error) {
     return errorResponse(error, requestId);

@@ -57,10 +57,10 @@ export default function OmrTemplatePage() {
   }, [params.id]);
 
   useEffect(() => {
-    fetch(`/api/exams/${params.id}`).then(async (response) => {
+    fetch(`/api/exams/${params.id}`, { cache: "no-store" }).then(async (response) => {
       const payload = await response.json() as { data?: { activeRevisionId?: string } };
       if (!response.ok || !payload.data?.activeRevisionId) return;
-      const [solutionsResponse, pagesResponse] = await Promise.all([fetch(`/api/exams/${params.id}/revisions/${payload.data.activeRevisionId}/solutions`), fetch(`/api/exams/${params.id}/pages`)]);
+      const [solutionsResponse, pagesResponse] = await Promise.all([fetch(`/api/exams/${params.id}/revisions/${payload.data.activeRevisionId}/solutions`, { cache: "no-store" }), fetch(`/api/exams/${params.id}/pages`, { cache: "no-store" })]);
       const solutions = await solutionsResponse.json() as { data?: { revision?: { pagesManifestEtag: string }; questions?: ObjectiveQuestion[]; answerKey?: { status?: string; decisions?: Record<string, { sectionId?: string }> } } };
       if (!solutionsResponse.ok || !solutions.data) return;
       setSourceReady(Boolean(solutions.data.answerKey?.status === "approved" && solutions.data.revision?.pagesManifestEtag === pagesResponse.headers.get("etag")));

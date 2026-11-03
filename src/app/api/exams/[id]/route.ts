@@ -17,7 +17,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     const { ownerId } = await requireOwner();
     const result = await getExamRepository().getWithMeta(ownerId, (await context.params).id);
     if (!result) throw new AppError("NOT_FOUND", "Examen no encontrado.", 404);
-    return Response.json({ data: result.exam, requestId }, { headers: { "x-request-id": requestId, etag: result.etag } });
+    return Response.json({ data: result.exam, requestId }, { headers: { "x-request-id": requestId, etag: result.etag, "cache-control": "no-store" } });
   } catch (error) {
     return errorResponse(error, requestId);
   }
