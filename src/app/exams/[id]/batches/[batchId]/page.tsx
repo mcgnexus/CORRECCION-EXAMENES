@@ -412,10 +412,17 @@ export default function BatchPage() {
   const currentStep = workflowStep();
 
   return (
-    <main className="shell">
+    <main className={`shell ${selected ? "full-step-screen" : ""}`}>
+      <style jsx>{`
+        .full-step-screen > section > .intro,
+        .full-step-screen > section > .panel { display: none; }
+        .full-step-screen > section > .detail-grid { display: block; }
+        .full-step-screen > section > .detail-grid > .panel:first-child { display: none; }
+        .full-step-screen > section > .detail-grid > .panel:last-child { width: 100%; max-width: none; }
+      `}</style>
       <header className="topbar"><a className="eyebrow" href={`/exams/${params.id}`}>Volver al examen</a><span className="status">Corrección de entregas</span></header>
       <section>
-        <h1>Lote de corrección.</h1>
+        <h1>{selected ? `Corrección: ${selected.confirmedIdentity ?? selected.suggestedIdentity ?? selected.submissionId.slice(0, 8)}` : "Lote de corrección."}</h1>
         <p className="intro">Flujo: 1) Procesar lote: la IA lee la matriz de respuestas y sugiere el nombre del alumno comparando con el solucionario aprobado. 2) Confirma el nombre sugerido. 3) Las entregas limpias se puntúan solas; revisa solo las incidencias. 4) Cierra cada entrega. 5) Finaliza el lote y exporta.</p>
         <section className="panel" aria-label="Flujo de trabajo">
           <h2>Flujo de trabajo</h2>
@@ -437,11 +444,10 @@ export default function BatchPage() {
             {selected ? <div className="actions"><button className="button secondary" type="button" disabled={busy} onClick={addSubmissionFromPageIds}>Registrar assets de nuevo</button><button className="button" type="button" disabled={busy} onClick={startOmr}>Iniciar lectura OMR</button></div> : null}
           </div>
           <div className="panel">
+            {selected ? <button className="button secondary" type="button" onClick={() => { selectedIdRef.current = null; setSelected(null); setReading(null); setDetailSnapshot(null); setMessage(null); }}>← Volver al lote</button> : null}
             <h2>Asistente de corrección</h2>
             {selected ? <>
-              <div className="actions" aria-label="Pasos del asistente">
-                {[1, 2, 3, 4].map((step) => <button className={`button ${wizardStep === step ? "" : "secondary"}`} type="button" key={step} onClick={() => setWizardStep(step)}>Paso {step}: {["Nombre (OCR)", "Respuestas (OMR)", "Comparación", "Puntuación"][step - 1]}{stepUnlocked(step) ? " ✓" : ""}</button>)}
-              </div>
+              <p className="eyebrow">Pantalla {wizardStep} de 4 · {["Nombre (OCR)", "Respuestas (OMR)", "Comparación", "Puntuación"][wizardStep - 1]}</p>
               {wizardStep === 1 ? <>
                 <h3>Paso 1 · OCR del nombre</h3>
                 <label className="label">Identidad confirmada<input className="input" value={identity} onChange={(event) => setIdentity(event.target.value)} /></label>

@@ -24,6 +24,11 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   try {
     const { ownerId } = await requireOwner();
     const params = await context.params;
+    const existing = await getAnswerKeyRepository().get(ownerId, params.id, params.revisionId);
+    if (existing) {
+      const revision = await getExamRevisionRepository().get(ownerId, params.id, existing.value.examRevisionId);
+      return Response.json({ data: { revision: revision?.value ?? null, answerKey: existing.value }, requestId }, { headers: { "x-request-id": requestId, etag: existing.etag } });
+    }
     const result = await ensureAnswerKey(ownerId, params.id, params.revisionId);
     return Response.json({ data: { revision: result.revision.value, answerKey: result.answerKey.value }, requestId }, { headers: { "x-request-id": requestId, etag: result.answerKey.etag } });
   } catch (error) { return errorResponse(error, requestId); }
