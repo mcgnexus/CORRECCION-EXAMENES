@@ -297,9 +297,9 @@ export default function BatchPage() {
     const snapshotExpectedEtag = currentPayload.data?.snapshotEtag;
     if (!expectedEtag || !snapshotExpectedEtag) { setBusy(false); setMessage(currentPayload.error?.message ?? "El snapshot no está disponible para cierre."); return; }
     const response = await fetch(`${base}/${selected.submissionId}/close`, { method: "POST", headers: { "content-type": "application/json", origin: window.location.origin }, body: JSON.stringify({ expectedEtag, snapshotExpectedEtag }) });
-    const payload = await response.json() as { error?: { message?: string } };
+    const payload = await response.json() as { error?: { code?: string; message?: string } };
     setBusy(false);
-    setMessage(response.ok ? "Entrega cerrada." : payload.error?.message ?? "No se pudo cerrar la entrega.");
+    setMessage(response.ok ? "Entrega cerrada." : payload.error?.message ? `${payload.error.message} (código: ${payload.error.code})` : "No se pudo cerrar la entrega.");
     if (response.ok) await load();
   }
 
@@ -351,12 +351,39 @@ export default function BatchPage() {
     return "1 · Leyendo hoja (OMR + nombre)";
   }
 
+  function workflowStep(): number {
+    if (submissions.length === 0) return 0;
+    if (batch && batch.state !== "closed" && (!batchJob || !["completed", "failed", "cancelled"].includes(batchJob.status))) return 1;
+    const pending = submissions.find((submission) => submission.state !== "closed");
+    if (!pending) return batch?.state === "closed" ? 5 : 4;
+    if (!pending.confirmedIdentity) return 2;
+    if (!pending.snapshotId || pending.state === "review" || pending.state === "review_scores") return 3;
+    return 4;
+  }
+
+  const steps = [
+    { title: "Subir exámenes", detail: "Sube los PDF o imágenes de los alumnos con el botón «Subir exámenes de alumnos» del panel Entregas." },
+    { title: "Procesar lote", detail: "Pulsa «Procesar lote». La IA lee la matriz de respuestas y sugiere el nombre de cada alumno. Espera a que el job termine." },
+    { title: "Confirmar identidad", detail: "Selecciona cada entrega, revisa el nombre sugerido y pulsa «Confirmar identidad»." },
+    { title: "Revisar y puntuar", detail: "Resuelve las incidencias de lectura (cola de revisión OMR) y delimita/transcribe/evalúa las respuestas abiertas si las hay. Pulsa «Puntuar entrega»." },
+    { title: "Cerrar cada entrega", detail: "Cuando la entrega esté puntuada y sin incidencias, pulsa «Cerrar entrega». Repite pasos 2-4 con cada entrega hasta cerrarlas todas." },
+    { title: "Finalizar y exportar", detail: "Con todas las entregas cerradas, pulsa «Finalizar lote» y luego inicia la exportación en el panel Exportación del lote." },
+  ];
+  const currentStep = workflowStep();
+
   return (
     <main className="shell">
       <header className="topbar"><a className="eyebrow" href={`/exams/${params.id}`}>Volver al examen</a><span className="status">Corrección de entregas</span></header>
       <section>
         <h1>Lote de corrección.</h1>
         <p className="intro">Flujo: 1) Procesar lote: la IA lee la matriz de respuestas y sugiere el nombre del alumno comparando con el solucionario aprobado. 2) Confirma el nombre sugerido. 3) Las entregas limpias se puntúan solas; revisa solo las incidencias. 4) Cierra cada entrega. 5) Finaliza el lote y exporta.</p>
+        <section className="panel" aria-label="Flujo de trabajo">
+          <h2>Flujo de trabajo</h2>
+          <p className="intro">Estás en el paso {currentStep + 1} de {steps.length}: <strong>{steps[currentStep]?.title}</strong>.</p>
+          <ol>
+            {steps.map((step, index) => <li key={step.title} style={{ fontWeight: index === currentStep ? 700 : 400 }}>{index + 1}. {step.title}: {step.detail}{index === currentStep ? " ← paso actual" : ""}</li>)}
+          </ol>
+        </section>
         {message ? <p className="notice" role="status">{message}</p> : null}
         {batchJob?.status === "completed" && ((batchJob.progress.blockedSubmissions ?? 0) > 0 || (batchJob.progress.failedSubmissions ?? 0) > 0) ? <p className="notice" role="status">El procesamiento ha terminado con entregas pendientes de revisión. No significa que las respuestas estén corregidas ni que el lote pueda cerrarse.</p> : null}
         {submissions.some((submission) => submission.state !== "closed") ? <section className="panel" aria-label="Pasos pendientes para finalizar"><h2>Pendiente de cierre</h2><p>Primero procesa el lote. Después revisa y cierra cada entrega; solo entonces podrás finalizar.</p><ul>{submissions.filter((submission) => submission.state !== "closed").map((submission) => <li key={submission.submissionId}><button className="button secondary" type="button" onClick={() => openSubmission(submission)}>Revisar {submission.confirmedIdentity ?? submission.submissionId.slice(0, 8)}</button> Estado: {submission.state}. {!submission.confirmedIdentity ? "Falta confirmar la identidad. " : ""}{!submission.snapshotId ? "Falta puntuar la entrega. " : ""}{submission.responseBlockingIssues?.length ? `Incidencias: ${submission.responseBlockingIssues.join(", ")}` : ""}</li>)}</ul></section> : null}
