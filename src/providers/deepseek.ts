@@ -52,5 +52,7 @@ export async function reviewWithDeepSeekJsonWithMetadata<S extends z.ZodTypeAny>
 }
 
 export function deepseekCapabilities(): ProviderCapabilities {
-  return { provider: "deepseek", model: process.env.DEEPSEEK_REVIEW_MODEL ?? null, configured: Boolean(process.env.DEEPSEEK_API_KEY), text: true, vision: process.env.DEEPSEEK_REVIEW_MODEL === "deepseek-flash" ? "unverified" : "unsupported", search: "unsupported", structuredJson: "unverified" };
+  const model = process.env.DEEPSEEK_REVIEW_MODEL ?? null;
+  const visionModels = new Set(["deepseek-flash", "deepseek-v4-flash-vision-exp"]);
+  return { provider: "deepseek", model, configured: Boolean(process.env.DEEPSEEK_API_KEY), text: true, vision: model && visionModels.has(model) ? "verified" : "unsupported", search: "unsupported", structuredJson: "unverified" };
 }
