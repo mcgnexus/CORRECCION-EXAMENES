@@ -19,6 +19,20 @@ type ObjectiveQuestion = { questionId: string; number: number; type: string };
 const ANCHOR_LABELS = ["Sup-izq", "Sup-der", "Inf-der", "Inf-izq"];
 const OPTIONS = ["A", "B", "C", "D"];
 
+function shortEtag(value?: string) {
+  return value ? `${value.slice(1, 9)}…` : "(vacío)";
+}
+
+function SourceDiagnosticPanel({ diagnostic }: { diagnostic: { revisionId?: string; answerKeyStatus?: string; revisionEtag?: string; manifestEtag?: string } | null }) {
+  if (!diagnostic) return null;
+  const etagMatch = Boolean(diagnostic.revisionEtag && diagnostic.revisionEtag === diagnostic.manifestEtag);
+  return (
+    <p className="intro" style={{ fontSize: "0.85em" }}>
+      Diagnóstico · Revisión activa: {diagnostic.revisionId?.slice(0, 8) ?? "(ninguna)"} · Solucionario: {diagnostic.answerKeyStatus ?? "desconocido"} · ETag revisión: {shortEtag(diagnostic.revisionEtag)} · ETag manifiesto: {shortEtag(diagnostic.manifestEtag)} · {etagMatch ? "coinciden" : "no coinciden"}
+    </p>
+  );
+}
+
 export default function OmrTemplatePage() {
   const params = useParams<{ id: string }>();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -44,6 +58,7 @@ export default function OmrTemplatePage() {
   const [calibrateAgain, setCalibrateAgain] = useState(false);
   const [objectiveQuestionIds, setObjectiveQuestionIds] = useState<string[]>([]);
   const [sourceReady, setSourceReady] = useState(false);
+  const [sourceDiagnostic, setSourceDiagnostic] = useState<{ revisionId?: string; answerKeyStatus?: string; revisionEtag?: string; manifestEtag?: string } | null>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
 
   const effectiveRotation = rotation + fineRotation;
@@ -59,11 +74,14 @@ export default function OmrTemplatePage() {
   useEffect(() => {
     fetch(`/api/exams/${params.id}`, { cache: "no-store" }).then(async (response) => {
       const payload = await response.json() as { data?: { activeRevisionId?: string } };
-      if (!response.ok || !payload.data?.activeRevisionId) return;
+      if (!response.ok || !payload.data?.activeRevisionId) { setSourceDiagnostic({ answerKeyStatus: "sin revisión activa" }); return; }
       const [solutionsResponse, pagesResponse] = await Promise.all([fetch(`/api/exams/${params.id}/revisions/${payload.data.activeRevisionId}/solutions`, { cache: "no-store" }), fetch(`/api/exams/${params.id}/pages`, { cache: "no-store" })]);
       const solutions = await solutionsResponse.json() as { data?: { revision?: { pagesManifestEtag: string }; questions?: ObjectiveQuestion[]; answerKey?: { status?: string; decisions?: Record<string, { sectionId?: string }> } } };
-      if (!solutionsResponse.ok || !solutions.data) return;
-      setSourceReady(Boolean(solutions.data.answerKey?.status === "approved" && solutions.data.revision?.pagesManifestEtag === pagesResponse.headers.get("etag")));
+      if (!solutionsResponse.ok || !solutions.data) { setSourceDiagnostic({ revisionId: payload.data.activeRevisionId, answerKeyStatus: "error al cargar la revisión" }); return; }
+      const manifestEtag = pagesResponse.headers.get("etag") ?? "";
+      const revisionEtag = solutions.data.revision?.pagesManifestEtag ?? "";
+      setSourceDiagnostic({ revisionId: payload.data.activeRevisionId, answerKeyStatus: solutions.data.answerKey?.status ?? "sin solucionario", revisionEtag, manifestEtag });
+      setSourceReady(Boolean(solutions.data.answerKey?.status === "approved" && revisionEtag && revisionEtag === manifestEtag));
       setObjectiveQuestionIds((solutions.data.questions ?? [])
         .filter((question) => ["single_choice", "multiple_choice"].includes(question.type) && solutions.data!.answerKey?.decisions?.[question.questionId]?.sectionId === "test")
         .sort((a, b) => a.number - b.number)
@@ -278,7 +296,7 @@ export default function OmrTemplatePage() {
         {approvedTemplate && !calibrateAgain ? <section className="panel">
           <h2>Plantilla OMR aprobada</h2>
           <p>{approvedTemplate.templateId} · actualizada {new Date(approvedTemplate.updatedAt).toLocaleString("es-ES")}</p>
-          {!sourceReady ? <p className="notice" role="status">SOURCE_NOT_READY: La fuente actual necesita un solucionario IA aprobado. <a href={`/exams/${params.id}/answers`}>Actualizar respuestas en la pantalla 2</a>.</p> : null}
+          {!sourceReady ? <><p className="notice" role="status">SOURCE_NOT_READY: La fuente actual necesita un solucionario IA aprobado y vigente. <a href={`/exams/${params.id}/answers`}>Actualizar respuestas en la pantalla 2</a>.</p><SourceDiagnosticPanel diagnostic={sourceDiagnostic} /></> : null}
           <div className="actions"><a className="button" aria-disabled={!sourceReady} href={sourceReady ? `/exams/${params.id}/students` : undefined} onClick={(event) => { if (!sourceReady) event.preventDefault(); }}>Siguiente: respuestas de alumnos</a><button className="button secondary" type="button" onClick={() => { if (window.confirm("Recalibrar crea una configuración nueva y puede exigir repetir la plantilla para los lotes siguientes. ¿Continuar?")) setCalibrateAgain(true); }}>Recalibrar formato</button></div>
         </section> : null}
         {templateId ? <p className="notice">Plantilla: {templateId} — estado: {templateState ?? "desconocido"}</p> : null}
@@ -299,7 +317,7 @@ export default function OmrTemplatePage() {
             <button className="button" type="button" disabled={!imageBase64 || busy} onClick={analyze}>{busy ? "Analizando..." : "Analizar hoja"}</button>
             <button className="button secondary" type="button" disabled={!result || manualAnchors.length === 0} onClick={() => { setManualAnchors([]); setNextAnchor(0); }}>Reiniciar anclas</button>
             <button className="button" type="button" disabled={busy || !result || !sourceReady} onClick={saveTemplate}>Guardar plantilla</button>
-            {!sourceReady ? <p className="notice" role="status">Falta aprobar las respuestas IA de la fuente actual. <a href={`/exams/${params.id}/answers`}>Resolver en la pantalla 2</a>.</p> : null}
+            {!sourceReady ? <><p className="notice" role="status">Falta aprobar las respuestas IA de la fuente actual o su ETag no coincide con el manifiesto vigente. <a href={`/exams/${params.id}/answers`}>Resolver en la pantalla 2</a>.</p><SourceDiagnosticPanel diagnostic={sourceDiagnostic} /></> : null}
             <button className="button secondary" type="button" disabled={busy || !templateId || templateState === "approved"} onClick={approveTemplate}>{templateState === "approved" ? "Plantilla aprobada" : "Aprobar plantilla"}</button>
           </div>
         </div>
