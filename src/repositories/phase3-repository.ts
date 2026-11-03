@@ -113,7 +113,7 @@ export class SubmissionRepository extends JsonRepository {
     return submissions;
   }
 
-  async update(ownerId: string, batchId: string, submissionId: string, expectedEtag: string, patch: Partial<Pick<Submission, "state" | "suggestedIdentity" | "identityConfidence" | "identitySource" | "confirmedIdentity" | "confirmedBy" | "confirmedAt" | "ocrRef" | "readingIds" | "snapshotId" | "activeResponseRegionRevisionId" | "responseTranscriptionIds" | "responseEvaluationIds" | "responseDecisionIds" | "responseBlockingIssues">>) {
+  async update(ownerId: string, batchId: string, submissionId: string, expectedEtag: string, patch: Partial<Pick<Submission, "state" | "suggestedIdentity" | "identityConfidence" | "identitySource" | "confirmedIdentity" | "confirmedBy" | "confirmedAt" | "responsesConfirmedAt" | "responsesConfirmedBy" | "responsesFingerprint" | "comparisonConfirmedAt" | "comparisonConfirmedBy" | "comparisonAnswerKeyRevisionId" | "comparisonFingerprint" | "ocrRef" | "readingIds" | "snapshotId" | "activeResponseRegionRevisionId" | "responseTranscriptionIds" | "responseEvaluationIds" | "responseDecisionIds" | "responseBlockingIssues">>) {
     const current = await this.get(ownerId, batchId, submissionId);
     if (!current) throw new AppError("NOT_FOUND", "Entrega no encontrada.", 404);
     return this.applyUpdate<Submission>(this.path(ownerId, batchId, submissionId), submissionSchema, current, expectedEtag, patch);

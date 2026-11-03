@@ -1,6 +1,7 @@
 "use client";
 
 import { uploadExamAsset } from "@/lib/supabase-upload-client";
+import { ExamWorkflowNav } from "@/components/exam-workflow-nav";
 import { useParams } from "next/navigation";
 import { ChangeEvent, useCallback, useEffect, useMemo, useState } from "react";
 
@@ -18,12 +19,12 @@ export default function ExamDetailPage() {
   const [exam, setExam] = useState<Exam | null>(null);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [manifest, setManifest] = useState<Manifest>({ pages: [], groups: [], etag: "" });
+  const [pagesDirty, setPagesDirty] = useState(false);
   const [selectedPageId, setSelectedPageId] = useState<string | null>(null);
   const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
   const [groupLabel, setGroupLabel] = useState("Entrega");
   const [progress, setProgress] = useState<Record<string, number>>({});
   const [message, setMessage] = useState<string | null>(null);
-  const [autopilot, setAutopilot] = useState<{ runId: string; revisionId: string; status: string } | null>(null);
   const [deletingAssetId, setDeletingAssetId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -36,43 +37,11 @@ export default function ExamDetailPage() {
     setExam(examPayload.data ?? null);
     setAssets(assetsPayload.data ?? []);
     setManifest({ pages: pagesPayload.data?.pages ?? [], groups: pagesPayload.data?.groups ?? [], etag: pagesResponse.headers.get("etag") ?? "" });
+    setPagesDirty(false);
     setSelectedPageId((current) => current ?? pagesPayload.data?.pages?.[0]?.pageId ?? null);
   }, [examId]);
 
   useEffect(() => { load().catch((error) => setMessage(error instanceof Error ? error.message : "No se pudo cargar el examen.")).finally(() => setLoading(false)); }, [load]);
-
-  useEffect(() => {
-    if (!autopilot || !["queued", "running"].includes(autopilot.status)) return;
-    const timer = window.setInterval(async () => {
-      try {
-        const url = new URL(`/api/phase0/workflow/${autopilot.runId}`, window.location.origin);
-        url.searchParams.set("examId", examId);
-        url.searchParams.set("revisionId", autopilot.revisionId);
-        const response = await fetch(url);
-        const payload = await response.json() as {
-          data?: { status?: string; output?: { revisionId?: string }; progress?: { phase: string; completed?: number; total?: number } };
-          error?: { message?: string };
-        };
-        if (!response.ok || !payload.data?.status) {
-          setMessage(payload.error?.message ?? "No se pudo consultar el progreso. Seguimos comprobando la ejecución.");
-          return;
-        }
-        const status = payload.data.status;
-        setAutopilot((current) => current ? { ...current, status } : current);
-        if (status === "completed") window.location.href = `/exams/${examId}/revisions/${payload.data.output?.revisionId ?? autopilot.revisionId}/answer-key`;
-        else if (["failed", "cancelled"].includes(status)) setMessage("La ejecución terminó antes de completar la revisión. Puedes iniciar una ejecución nueva.");
-        else if (payload.data.progress) {
-          const { phase, completed, total } = payload.data.progress;
-          if (phase === "preparing") setMessage("Preparando las páginas para la lectura con IA…");
-          else if (phase === "reading_pages") setMessage(`Leyendo páginas con IA: ${completed ?? 0}/${total ?? "?"}.`);
-          else if (phase === "solving_questions") setMessage(`Resolviendo preguntas: ${completed ?? 0}/${total ?? "?"}.`);
-        }
-      } catch {
-        setMessage("No se pudo consultar el progreso por un problema de conexión. Seguimos comprobando la ejecución.");
-      }
-    }, 3000);
-    return () => window.clearInterval(timer);
-  }, [autopilot, examId]);
 
   const selectedPage = manifest.pages.find((page) => page.pageId === selectedPageId) ?? null;
   const selectedAsset = selectedPage ? assets.find((asset) => asset.assetId === selectedPage.sourceAssetId) : null;
@@ -116,7 +85,7 @@ export default function ExamDetailPage() {
     }
   }
 
-  function updatePage(pageId: string, patch: Partial<Page>) { setManifest((current) => ({ ...current, pages: current.pages.map((page) => page.pageId === pageId ? { ...page, ...patch } : page) })); }
+  function updatePage(pageId: string, patch: Partial<Page>) { setPagesDirty(true); setManifest((current) => ({ ...current, pages: current.pages.map((page) => page.pageId === pageId ? { ...page, ...patch } : page) })); }
 
   function movePage(direction: -1 | 1) {
     if (!selectedPage) return;
@@ -125,6 +94,7 @@ export default function ExamDetailPage() {
     const target = index + direction;
     if (target < 0 || target >= pages.length) return;
     [pages[index], pages[target]] = [pages[target], pages[index]];
+    setPagesDirty(true);
     setManifest((current) => ({ ...current, pages: pages.map((page, order) => ({ ...page, order })) }));
   }
 
@@ -134,26 +104,25 @@ export default function ExamDetailPage() {
     if (!response.ok) {
       setMessage(response.status === 409 ? "Las páginas cambiaron en otra pestaña o proceso. Se han recargado." : payload.error?.message ?? "No se pudieron guardar las páginas.");
       if (response.status === 409) await load();
-      return;
+      return false;
     }
     setManifest({ pages: payload.data?.pages ?? [], groups: payload.data?.groups ?? [], etag: response.headers.get("etag") ?? manifest.etag });
+    setPagesDirty(false);
     setMessage("Cambios guardados.");
+    return true;
+  }
+
+  async function continueToAnswers() {
+    if (!manifest.pages.length) return;
+    if (await savePages()) window.location.href = `/exams/${examId}/answers`;
   }
 
   function createGroup() {
     if (selectedGroupIds.length === 0 || !exam) return;
     const group: Group = { groupId: crypto.randomUUID(), examId, ownerId: exam.ownerId, label: groupLabel || "Entrega", pageIds: selectedGroupIds };
     setManifest((current) => ({ ...current, groups: [...current.groups, group], pages: current.pages.map((page) => selectedGroupIds.includes(page.pageId) ? { ...page, groupId: group.groupId } : page) }));
+    setPagesDirty(true);
     setSelectedGroupIds([]);
-  }
-
-  async function readAndSolve() {
-    setMessage(null);
-    const response = await fetch(`/api/exams/${examId}/autopilot`, { method: "POST", headers: { "content-type": "application/json", origin: window.location.origin, "idempotency-key": crypto.randomUUID() }, body: JSON.stringify({ language: "es" }) });
-    const payload = await response.json() as { data?: { runId?: string; revisionId?: string }; error?: { message?: string; code?: string; retryable?: boolean } };
-    if (!response.ok || !payload.data?.runId || !payload.data.revisionId) { setMessage(payload.error?.message ?? "No se pudo iniciar la lectura del examen."); return; }
-    setAutopilot({ runId: payload.data.runId, revisionId: payload.data.revisionId, status: "running" });
-    setMessage(payload.error?.code === "AUTOPILOT_STARTING" ? "La ejecución está arrancando; vuelve a intentarlo en unos instantes." : "La IA está leyendo y resolviendo el examen. Te redirigiremos al solucionario al terminar.");
   }
 
   const previewUrl = selectedAsset ? `/api/assets/${selectedAsset.assetId}/content` : null;
@@ -163,11 +132,15 @@ export default function ExamDetailPage() {
       {loading ? <p className="intro">Cargando examen...</p> : exam ? <section>
         <h1>{exam.title}</h1>
         <p className="intro">{exam.subject}. Los originales permanecen privados; las transformaciones se guardan como revisión del manifiesto.</p>
-        <div className="actions">
-          <a className="button secondary" href={`/exams/${examId}/omr-template`}>Calibrar plantilla OMR</a>
-          <button className="button" type="button" disabled={manifest.pages.length === 0 || ["queued", "running"].includes(autopilot?.status ?? "")} onClick={readAndSolve}>{["queued", "running"].includes(autopilot?.status ?? "") ? "La IA está leyendo y resolviendo..." : "Leer y resolver con IA"}</button>
-          {exam.activeRevisionId ? <a className="button secondary" href={`/exams/${examId}/revisions/${exam.activeRevisionId}/answer-key`}>Ver solucionario</a> : null}
-        </div>
+        <ExamWorkflowNav current={1} links={[
+          { stage: 1, title: "Examen", href: `/exams/${examId}`, enabled: true },
+          { stage: 2, title: "Respuestas IA", href: `/exams/${examId}/answers`, enabled: manifest.pages.length > 0 && !pagesDirty },
+          { stage: 3, title: "Plantilla OMR", href: `/exams/${examId}/omr-template`, enabled: false },
+          { stage: 4, title: "Alumnos", href: `/exams/${examId}/students`, enabled: false },
+          { stage: 5, title: "Comparar", href: `/exams/${examId}/students`, enabled: false },
+          { stage: 6, title: "Calificar", href: `/exams/${examId}/students`, enabled: false },
+        ]} />
+        <p className="intro">Prepara el examen fuente: sube el documento, ordena y transforma sus páginas. La IA se inicia en la pantalla 2.</p>
         {message ? <p className="notice" role="status">{message}</p> : null}
         <div className="detail-grid">
           <div className="panel">
@@ -182,6 +155,7 @@ export default function ExamDetailPage() {
           <div className="panel"><h2>Páginas</h2><div className="page-list">{orderedPages.map((page) => <div className={`page-row ${selectedPageId === page.pageId ? "selected" : ""}`} key={page.pageId} onClick={() => setSelectedPageId(page.pageId)}><input type="checkbox" checked={selectedGroupIds.includes(page.pageId)} onChange={() => setSelectedGroupIds((current) => current.includes(page.pageId) ? current.filter((id) => id !== page.pageId) : [...current, page.pageId])} onClick={(event) => event.stopPropagation()} /><span>Página {page.pageNumber} · orden {page.order + 1}</span><span className="eyebrow">{page.rotation}°</span></div>)}</div></div>
           <div className="panel"><h2>Transformar y agrupar</h2><div className="toolbar"><button className="button secondary" type="button" onClick={() => selectedPage && updatePage(selectedPage.pageId, { rotation: ((selectedPage.rotation + 90) % 360) as Page["rotation"] })}>Girar 90°</button><button className="button secondary" type="button" onClick={() => movePage(-1)}>Subir</button><button className="button secondary" type="button" onClick={() => movePage(1)}>Bajar</button></div>{selectedPage ? <div className="mini-form"><input className="input" type="number" min="0" max="1" step=".01" placeholder="x" value={selectedPage.crop?.x ?? ""} onChange={(event) => updatePage(selectedPage.pageId, { crop: { x: Number(event.target.value), y: selectedPage.crop?.y ?? 0, width: selectedPage.crop?.width ?? 1, height: selectedPage.crop?.height ?? 1 } })} /><input className="input" type="number" min="0" max="1" step=".01" placeholder="y" value={selectedPage.crop?.y ?? ""} onChange={(event) => updatePage(selectedPage.pageId, { crop: { x: selectedPage.crop?.x ?? 0, y: Number(event.target.value), width: selectedPage.crop?.width ?? 1, height: selectedPage.crop?.height ?? 1 } })} /><input className="input" type="number" min="0" max="1" step=".01" placeholder="ancho" value={selectedPage.crop?.width ?? ""} onChange={(event) => updatePage(selectedPage.pageId, { crop: { x: selectedPage.crop?.x ?? 0, y: selectedPage.crop?.y ?? 0, width: Number(event.target.value), height: selectedPage.crop?.height ?? 1 } })} /><input className="input" type="number" min="0" max="1" step=".01" placeholder="alto" value={selectedPage.crop?.height ?? ""} onChange={(event) => updatePage(selectedPage.pageId, { crop: { x: selectedPage.crop?.x ?? 0, y: selectedPage.crop?.y ?? 0, width: selectedPage.crop?.width ?? 1, height: Number(event.target.value) } })} /></div> : null}<div className="form"><input className="input" value={groupLabel} onChange={(event) => setGroupLabel(event.target.value)} /><button className="button secondary" type="button" onClick={createGroup}>Agrupar seleccionadas ({selectedGroupIds.length})</button><button className="button" type="button" onClick={savePages}>Guardar páginas</button></div>{manifest.groups.map((group) => <p className="intro" key={group.groupId}>{group.label}: {group.pageIds.length} páginas</p>)}</div>
         </div>
+        <div className="actions"><button className="button" type="button" disabled={manifest.pages.length === 0} onClick={continueToAnswers}>{pagesDirty ? "Guardar y continuar: respuestas IA" : "Continuar: respuestas IA"}</button></div>
       </section> : <p className="notice">{message ?? "Examen no encontrado."}</p>}
     </main>
   );

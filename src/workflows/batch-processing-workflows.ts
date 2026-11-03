@@ -20,6 +20,8 @@ export type ProcessBatchInput = {
   scoringPolicyRevisionId: string;
   concurrency: number;
   maxAttempts: number;
+  submissionId?: string;
+  scope?: "batch" | "submission_omr" | "submission_open";
 };
 
 type QuestionMap = { validIds: string[]; aliases: Record<string, string[]> };
@@ -86,10 +88,12 @@ async function loadBatchContext(input: ProcessBatchInput): Promise<BatchContext>
     }
   }
   questionMap.aliases = Object.fromEntries([...aliases].map(([alias, ids]) => [alias, [...ids]]));
-  const submissions = await Promise.all(batchResult.value.submissionIds.map((submissionId) => getSubmissionRepository().get(input.ownerId, input.batchId, submissionId)));
+  if (input.submissionId && !batchResult.value.submissionIds.includes(input.submissionId)) throw new AppError("SUBMISSION_NOT_IN_BATCH", "La entrega no pertenece al lote.", 404);
+  const selectedSubmissionIds = input.submissionId ? [input.submissionId] : batchResult.value.submissionIds;
+  const submissions = await Promise.all(selectedSubmissionIds.map((submissionId) => getSubmissionRepository().get(input.ownerId, input.batchId, submissionId)));
   if (submissions.some((item) => !item)) throw new AppError("SUBMISSION_MANIFEST_MISSING", "Falta una entrega referenciada por el lote.", 409);
   const values = submissions.map((item) => item!.value);
-  const totalPages = values.reduce((sum, submission) => sum + submission.pageIds.length, 0);
+  const totalPages = input.scope === "submission_open" ? 0 : values.reduce((sum, submission) => sum + submission.pageIds.length, 0);
   if (totalPages > batchResult.value.maxPages) throw new AppError("BATCH_PAGE_LIMIT", "El lote supera el límite de páginas configurado.", 413);
   return { batch: batchResult.value, answerKey: answerKey.value, template: template.value, questionMap, openQuestionIds, submissions: values, totalPages, totalQuestions: Object.keys(answerKey.value.decisions).length * values.length };
 }
@@ -323,7 +327,17 @@ async function appendSubmission(input: ProcessBatchInput, submissionId: string, 
     if (!current) throw new AppError("SUBMISSION_NOT_FOUND", "Entrega no encontrada.", 404);
     try {
       const update: Parameters<ReturnType<typeof getSubmissionRepository>["update"]>[4] = { ...patch };
-      if (patch.readingIds) update.readingIds = [...new Set([...current.value.readingIds, ...patch.readingIds])];
+      if (patch.readingIds) {
+        update.readingIds = [...new Set([...current.value.readingIds, ...patch.readingIds])];
+        update.responsesConfirmedAt = undefined;
+        update.responsesConfirmedBy = undefined;
+        update.responsesFingerprint = undefined;
+        update.comparisonConfirmedAt = undefined;
+        update.comparisonConfirmedBy = undefined;
+        update.comparisonAnswerKeyRevisionId = undefined;
+        update.comparisonFingerprint = undefined;
+        update.snapshotId = undefined;
+      }
       if (patch.responseTranscriptionIds) update.responseTranscriptionIds = [...new Set([...current.value.responseTranscriptionIds, ...patch.responseTranscriptionIds])];
       if (patch.responseEvaluationIds) update.responseEvaluationIds = [...new Set([...current.value.responseEvaluationIds, ...patch.responseEvaluationIds])];
       if (patch.responseBlockingIssues) update.responseBlockingIssues = [...new Set(patch.responseBlockingIssues)];
@@ -444,47 +458,55 @@ export async function processBatchWorkflow(input: ProcessBatchInput) {
       if (await isCancelled(input)) { await setBatchState(input, "review", ["PROCESSING_CANCELLED"]); await finishJob(input, "cancelled", progress(), false); return { status: "cancelled" as const }; }
       if (submission.state === "closed") { completedSubmissions += 1; continue; }
       let issues: string[] = [];
-      try {
-        const pages = await loadSubmissionPages(input, submission.submissionId);
-        for (let offset = 0; offset < pages.length; offset += input.concurrency) {
+      if (input.scope !== "submission_open") {
+        try {
+          const pages = await loadSubmissionPages(input, submission.submissionId);
+          for (let offset = 0; offset < pages.length; offset += input.concurrency) {
+            if (await isCancelled(input)) { await setBatchState(input, "review", ["PROCESSING_CANCELLED"]); await finishJob(input, "cancelled", progress(), false); return { status: "cancelled" as const }; }
+            const chunk = pages.slice(offset, offset + input.concurrency);
+            const results = await Promise.all(chunk.map((page) => processPageWithRetries(input, page, context.template, context.questionMap)));
+            await appendSubmission(input, submission.submissionId, { readingIds: results.map((result) => result.readingId) });
+            results.forEach((result) => { if (result.issue) issues.push(result.issue); });
+            completedPages += results.filter((result) => !result.issue).length;
+            await updateJobProgress(input, { ...progress(), currentPageId: chunk[chunk.length - 1]?.pageId });
+          }
+          await updateJobProgress(input, { ...progress(), phase: "identity", currentSubmissionId: submission.submissionId });
+          await suggestIdentityFromSheet(input, submission.submissionId, pages[0]);
+        } catch (error) { issues.push(`${submission.submissionId}:${errorCode(error)}`); failedSubmissions += 1; }
+      }
+      if (input.scope === "submission_omr") {
+        await appendSubmission(input, submission.submissionId, { responseBlockingIssues: [...new Set(issues)], state: "review" });
+        completedSubmissions += 1;
+        await updateJobProgress(input, progress());
+        continue;
+      }
+        const regionPlan = context.openQuestionIds.length ? await prepareRegionTasks(input, submission.submissionId, context.openQuestionIds) : { tasks: [], issue: undefined, regionRevisionId: undefined };
+        if (regionPlan.issue) issues.push(regionPlan.issue);
+        if (regionPlan.regionRevisionId) await appendSubmission(input, submission.submissionId, { activeResponseRegionRevisionId: regionPlan.regionRevisionId });
+        for (let offset = 0; offset < regionPlan.tasks.length; offset += input.concurrency) {
           if (await isCancelled(input)) { await setBatchState(input, "review", ["PROCESSING_CANCELLED"]); await finishJob(input, "cancelled", progress(), false); return { status: "cancelled" as const }; }
-          const chunk = pages.slice(offset, offset + input.concurrency);
-          const results = await Promise.all(chunk.map((page) => processPageWithRetries(input, page, context.template, context.questionMap)));
-          await appendSubmission(input, submission.submissionId, { readingIds: results.map((result) => result.readingId) });
-          results.forEach((result) => { if (result.issue) issues.push(result.issue); });
-          completedPages += results.filter((result) => !result.issue).length;
-          await updateJobProgress(input, { ...progress(), currentPageId: chunk[chunk.length - 1]?.pageId });
+          const chunk = regionPlan.tasks.slice(offset, offset + input.concurrency);
+          const results = await Promise.all(chunk.map((task) => transcribeQuestionWithRetries(input, task)));
+          await appendSubmission(input, submission.submissionId, { responseTranscriptionIds: results.flatMap((result) => result.transcriptionId ? [result.transcriptionId] : []) });
+          for (const result of results) {
+            if (result.providerCalled) await addProviderUsage(input, result.providerUsage, result.retryCount);
+            if (result.issue) issues.push(result.issue);
+          }
+          await updateJobProgress(input, { ...progress(), phase: "transcription", currentQuestionId: chunk[chunk.length - 1]?.questionId });
         }
-        await updateJobProgress(input, { ...progress(), phase: "identity", currentSubmissionId: submission.submissionId });
-        await suggestIdentityFromSheet(input, submission.submissionId, pages[0]);
-      } catch (error) { issues.push(`${submission.submissionId}:${errorCode(error)}`); failedSubmissions += 1; }
-      const regionPlan = context.openQuestionIds.length ? await prepareRegionTasks(input, submission.submissionId, context.openQuestionIds) : { tasks: [], issue: undefined, regionRevisionId: undefined };
-      if (regionPlan.issue) issues.push(regionPlan.issue);
-      if (regionPlan.regionRevisionId) await appendSubmission(input, submission.submissionId, { activeResponseRegionRevisionId: regionPlan.regionRevisionId });
-      for (let offset = 0; offset < regionPlan.tasks.length; offset += input.concurrency) {
-        if (await isCancelled(input)) { await setBatchState(input, "review", ["PROCESSING_CANCELLED"]); await finishJob(input, "cancelled", progress(), false); return { status: "cancelled" as const }; }
-        const chunk = regionPlan.tasks.slice(offset, offset + input.concurrency);
-        const results = await Promise.all(chunk.map((task) => transcribeQuestionWithRetries(input, task)));
-        await appendSubmission(input, submission.submissionId, { responseTranscriptionIds: results.flatMap((result) => result.transcriptionId ? [result.transcriptionId] : []) });
-        for (const result of results) {
-          if (result.providerCalled) await addProviderUsage(input, result.providerUsage, result.retryCount);
-          if (result.issue) issues.push(result.issue);
+        const evaluationPlan = context.openQuestionIds.length ? await prepareEvaluationTasks(input, context, submission.submissionId) : { tasks: [], issue: undefined };
+        if (evaluationPlan.issue && evaluationPlan.issue !== "IDENTITY_REQUIRED") issues.push(evaluationPlan.issue);
+        for (let offset = 0; offset < evaluationPlan.tasks.length; offset += input.concurrency) {
+          if (await isCancelled(input)) { await setBatchState(input, "review", ["PROCESSING_CANCELLED"]); await finishJob(input, "cancelled", progress(), false); return { status: "cancelled" as const }; }
+          const chunk = evaluationPlan.tasks.slice(offset, offset + input.concurrency);
+          const results = await Promise.all(chunk.map((task) => evaluateQuestionWithRetries(input, task, context.answerKey.examRevisionId)));
+          await appendSubmission(input, submission.submissionId, { responseEvaluationIds: results.flatMap((result) => result.evaluationId ? [result.evaluationId] : []) });
+          for (const result of results) {
+            if (result.providerCalled) await addProviderUsage(input, result.providerUsage, result.retryCount);
+            if (result.issue) issues.push(result.issue);
+          }
+          await updateJobProgress(input, { ...progress(), phase: "evaluation", currentQuestionId: chunk[chunk.length - 1]?.questionId });
         }
-        await updateJobProgress(input, { ...progress(), phase: "transcription", currentQuestionId: chunk[chunk.length - 1]?.questionId });
-      }
-      const evaluationPlan = context.openQuestionIds.length ? await prepareEvaluationTasks(input, context, submission.submissionId) : { tasks: [], issue: undefined };
-      if (evaluationPlan.issue && evaluationPlan.issue !== "IDENTITY_REQUIRED") issues.push(evaluationPlan.issue);
-      for (let offset = 0; offset < evaluationPlan.tasks.length; offset += input.concurrency) {
-        if (await isCancelled(input)) { await setBatchState(input, "review", ["PROCESSING_CANCELLED"]); await finishJob(input, "cancelled", progress(), false); return { status: "cancelled" as const }; }
-        const chunk = evaluationPlan.tasks.slice(offset, offset + input.concurrency);
-        const results = await Promise.all(chunk.map((task) => evaluateQuestionWithRetries(input, task, context.answerKey.examRevisionId)));
-        await appendSubmission(input, submission.submissionId, { responseEvaluationIds: results.flatMap((result) => result.evaluationId ? [result.evaluationId] : []) });
-        for (const result of results) {
-          if (result.providerCalled) await addProviderUsage(input, result.providerUsage, result.retryCount);
-          if (result.issue) issues.push(result.issue);
-        }
-        await updateJobProgress(input, { ...progress(), phase: "evaluation", currentQuestionId: chunk[chunk.length - 1]?.questionId });
-      }
       const snapshot = await ensureSnapshot(input, context, submission.submissionId, issues);
       completedQuestions += snapshot.completedQuestions;
       issues = [...new Set([...issues, ...snapshot.issues])];

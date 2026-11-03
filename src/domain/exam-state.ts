@@ -9,7 +9,7 @@ const transitions: Record<ExamState, readonly ExamState[]> = {
   structure_review: ["solving", "extracting", "draft"],
   solving: ["key_review", "extracting", "draft"],
   key_review: ["approved"],
-  approved: [],
+  approved: ["extracting"],
 };
 
 export class InvalidExamTransitionError extends Error {

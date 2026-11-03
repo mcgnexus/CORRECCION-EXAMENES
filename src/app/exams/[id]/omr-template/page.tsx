@@ -2,6 +2,7 @@
 
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type MouseEvent } from "react";
+import { ExamWorkflowNav } from "@/components/exam-workflow-nav";
 
 type CalibrateResponse = {
   processedImage?: string;
@@ -13,6 +14,7 @@ type CalibrateResponse = {
   rows?: number[];
   detection?: string;
 };
+type ObjectiveQuestion = { questionId: string; number: number; type: string };
 
 const ANCHOR_LABELS = ["Sup-izq", "Sup-der", "Inf-der", "Inf-izq"];
 const OPTIONS = ["A", "B", "C", "D"];
@@ -38,9 +40,36 @@ export default function OmrTemplatePage() {
   const [templateId, setTemplateId] = useState<string | null>(null);
   const [templateEtag, setTemplateEtag] = useState<string | null>(null);
   const [templateState, setTemplateState] = useState<string | null>(null);
+  const [approvedTemplate, setApprovedTemplate] = useState<{ templateId: string; updatedAt: string } | null>(null);
+  const [calibrateAgain, setCalibrateAgain] = useState(false);
+  const [objectiveQuestionIds, setObjectiveQuestionIds] = useState<string[]>([]);
+  const [sourceReady, setSourceReady] = useState(false);
   const imageRef = useRef<HTMLImageElement | null>(null);
 
   const effectiveRotation = rotation + fineRotation;
+
+  useEffect(() => {
+    fetch(`/api/exams/${params.id}/omr-template`).then(async (response) => {
+      const payload = await response.json() as { data?: Array<{ templateId: string; state: string; updatedAt: string }> };
+      const approved = payload.data?.filter((template) => template.state === "approved").sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))[0];
+      if (approved) setApprovedTemplate({ templateId: approved.templateId, updatedAt: approved.updatedAt });
+    }).catch(() => undefined);
+  }, [params.id]);
+
+  useEffect(() => {
+    fetch(`/api/exams/${params.id}`).then(async (response) => {
+      const payload = await response.json() as { data?: { activeRevisionId?: string } };
+      if (!response.ok || !payload.data?.activeRevisionId) return;
+      const [solutionsResponse, pagesResponse] = await Promise.all([fetch(`/api/exams/${params.id}/revisions/${payload.data.activeRevisionId}/solutions`), fetch(`/api/exams/${params.id}/pages`)]);
+      const solutions = await solutionsResponse.json() as { data?: { revision?: { pagesManifestEtag: string }; questions?: ObjectiveQuestion[]; answerKey?: { status?: string; decisions?: Record<string, { sectionId?: string }> } } };
+      if (!solutionsResponse.ok || !solutions.data) return;
+      setSourceReady(Boolean(solutions.data.answerKey?.status === "approved" && solutions.data.revision?.pagesManifestEtag === pagesResponse.headers.get("etag")));
+      setObjectiveQuestionIds((solutions.data.questions ?? [])
+        .filter((question) => ["single_choice", "multiple_choice"].includes(question.type) && solutions.data!.answerKey?.decisions?.[question.questionId]?.sectionId === "test")
+        .sort((a, b) => a.number - b.number)
+        .map((question) => question.questionId));
+    }).catch(() => undefined);
+  }, [params.id]);
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
@@ -135,6 +164,12 @@ export default function OmrTemplatePage() {
     }
     setBusy(true);
     const groups = columns.length / 4;
+    const mappedQuestionCount = groups * rows.length;
+    if (mappedQuestionCount !== objectiveQuestionIds.length) {
+      setBusy(false);
+      setMessage(`La rejilla cubre ${mappedQuestionCount} preguntas, pero el solucionario aprobado tiene ${objectiveQuestionIds.length} preguntas OMR. Ajusta la rejilla antes de guardar.`);
+      return;
+    }
     const bubbles = [];
     for (let rowIndex = 0; rowIndex < rows.length; rowIndex += 1) {
       for (let optionIndex = 0; optionIndex < 4; optionIndex += 1) {
@@ -142,7 +177,7 @@ export default function OmrTemplatePage() {
           const x = columns[group * 4 + optionIndex];
           const y = rows[rowIndex];
           bubbles.push({
-            questionId: String(1 + group * rows.length + rowIndex),
+            questionId: objectiveQuestionIds[group * rows.length + rowIndex],
             optionId: OPTIONS[optionIndex],
             x: Number(Math.max(0, x / 1000 - 0.016).toFixed(4)),
             y: Number(Math.max(0, y / 930 - 0.018).toFixed(4)),
@@ -188,6 +223,7 @@ export default function OmrTemplatePage() {
     setBusy(false);
     if (!response.ok || !payload.data) { setMessage(payload.error?.message ?? "No se pudo aprobar la plantilla."); return; }
     setTemplateState(payload.data.state);
+    setApprovedTemplate({ templateId: templateId!, updatedAt: new Date().toISOString() });
     setTemplateEtag(response.headers.get("etag") ?? templateEtag);
     setMessage("Plantilla aprobada. Ya puedes crear el lote de corrección.");
   }
@@ -225,9 +261,24 @@ export default function OmrTemplatePage() {
       <header className="topbar"><a className="eyebrow" href={`/exams/${params.id}`}>Volver al examen</a><span className="status">Calibración OMR</span></header>
       <section>
         <h1>Calibrar la hoja de respuestas.</h1>
-        <p className="intro">Sube una foto de la hoja en blanco, ajusta rotación, brillo y contraste hasta que se detecten las 4 anclas y la rejilla. Fija anclas con clic si la detección falla.</p>
+        <ExamWorkflowNav current={3} links={[
+          { stage: 1, title: "Examen", href: `/exams/${params.id}`, enabled: true },
+          { stage: 2, title: "Respuestas IA", href: `/exams/${params.id}/answers`, enabled: true },
+          { stage: 3, title: "Plantilla OMR", href: `/exams/${params.id}/omr-template`, enabled: true },
+          { stage: 4, title: "Alumnos", href: `/exams/${params.id}/students`, enabled: Boolean(approvedTemplate && sourceReady) },
+          { stage: 5, title: "Comparar", href: `/exams/${params.id}/students`, enabled: false },
+          { stage: 6, title: "Calificar", href: `/exams/${params.id}/students`, enabled: false },
+        ]} />
+        <p className="intro">Calibra una hoja en blanco para este examen. El formato aprobado se usa para todas las entregas nuevas; las plantillas históricas siguen vinculadas a sus lotes.</p>
         {message ? <p className="notice" role="status">{message}</p> : null}
+        {approvedTemplate && !calibrateAgain ? <section className="panel">
+          <h2>Plantilla OMR aprobada</h2>
+          <p>{approvedTemplate.templateId} · actualizada {new Date(approvedTemplate.updatedAt).toLocaleString("es-ES")}</p>
+          {!sourceReady ? <p className="notice" role="status">La plantilla no se puede usar hasta aprobar las respuestas IA de la fuente actual en la pantalla 2.</p> : null}
+          <div className="actions"><a className="button" aria-disabled={!sourceReady} href={sourceReady ? `/exams/${params.id}/students` : undefined} onClick={(event) => { if (!sourceReady) event.preventDefault(); }}>Siguiente: respuestas de alumnos</a><button className="button secondary" type="button" onClick={() => setCalibrateAgain(true)}>Recalibrar formato</button></div>
+        </section> : null}
         {templateId ? <p className="notice">Plantilla: {templateId} — estado: {templateState ?? "desconocido"}</p> : null}
+        {!approvedTemplate || calibrateAgain ? <>
         <div className="form">
           <label className="label">Foto de la hoja en blanco<input className="input" type="file" accept="image/jpeg,image/png,image/webp" onChange={handleFile} /></label>
           <div className="calibration-grid">
@@ -239,6 +290,7 @@ export default function OmrTemplatePage() {
             <label className="label">Margen ambigüedad<input type="range" min={0.04} max={0.2} step={0.01} value={margin} onChange={(event) => setMargin(Number(event.target.value))} /></label>
             <label className="label">Filas por columna<input className="input" type="number" min={1} max={200} value={expectedRows} onChange={(event) => setExpectedRows(Number(event.target.value))} /></label>
           </div>
+          <p className="intro">Preguntas objetivas del solucionario: {objectiveQuestionIds.length}. La plantilla se vincula a IDs estables, no a números aproximados.</p>
           <div className="actions">
             <button className="button" type="button" disabled={!imageBase64 || busy} onClick={analyze}>{busy ? "Analizando..." : "Analizar hoja"}</button>
             <button className="button secondary" type="button" disabled={!result || manualAnchors.length === 0} onClick={() => { setManualAnchors([]); setNextAnchor(0); }}>Reiniciar anclas</button>
@@ -259,6 +311,8 @@ export default function OmrTemplatePage() {
             </div>
           </div>
         ) : null}
+        </> : null}
+        {approvedTemplate && sourceReady ? <div className="actions"><a className="button" href={`/exams/${params.id}/students`}>Siguiente: respuestas de alumnos</a></div> : null}
       </section>
     </main>
   );

@@ -26,6 +26,7 @@ describe("ExamRepository", () => {
 
   it("solo permite avanzar por los estados del flujo", () => {
     expect(transitionExam("draft", "extracting")).toBe("extracting");
+    expect(transitionExam("approved", "extracting")).toBe("extracting");
     expect(() => transitionExam("draft", "approved")).toThrow("Transición de examen no permitida");
     expect(() => transitionExam("approved", "draft")).toThrow("Transición de examen no permitida");
   });

@@ -1,0 +1,1016 @@
+{
+  "schemaVersion": 1,
+  "answerKeyRevisionId": "310d4acb-ddfd-499d-9ca6-46ab045a8311",
+  "examRevisionId": "89143c8d-1bc9-4c58-890c-d7dd0bf7f7cc",
+  "examId": "182c31fe-2d0b-46c0-84f3-e9a8756f9ee6",
+  "ownerId": "ACPL",
+  "status": "approved",
+  "scoringPolicyRevisionId": "policy-default",
+  "decisions": {
+    "b7c0ebf8-9beb-4f1c-88a5-f855ce803517": {
+      "questionId": "b7c0ebf8-9beb-4f1c-88a5-f855ce803517",
+      "sectionId": "test",
+      "answer": {
+        "selectedOptionIds": [
+          "B"
+        ]
+      },
+      "explanation": "El volumen de 150 μL está dentro del rango de la P200 (20–200 μL), pero no del de la P20 (2–20 μL). La P1000 también podría dispensarlo, pero no es la micropipeta de menor capacidad adecuada. Por tanto, debe usarse la P200 ajustada a 150 μL.",
+      "rubric": {
+        "criteria": [],
+        "totalMax": 0
+      },
+      "proposalIds": [
+        "ec9312ce-1a8a-45a8-a426-a1f58fc366f0"
+      ],
+      "sourceEvidenceIds": [],
+      "humanNote": "Propuesta por deepseek (deepseek-flash); pendiente de aprobación humana.",
+      "resolved": true
+    },
+    "007c43e0-2e2e-4ce4-a958-f17e9747dea3": {
+      "questionId": "007c43e0-2e2e-4ce4-a958-f17e9747dea3",
+      "sectionId": "test",
+      "answer": {
+        "selectedOptionIds": [
+          "D"
+        ]
+      },
+      "explanation": "Si aparece una burbuja en la punta, el volumen aspirado no es fiable. No debe compensarse aumentando el volumen ni dispensarse la muestra defectuosamente; hay que desechar esa aspiración y repetir la toma de muestra correctamente, verificando que no se formen burbujas.",
+      "rubric": {
+        "criteria": [],
+        "totalMax": 0
+      },
+      "proposalIds": [
+        "a7865172-d7a0-4a8f-aab7-71948f0bd10f"
+      ],
+      "sourceEvidenceIds": [],
+      "humanNote": "Propuesta por deepseek (deepseek-flash); pendiente de aprobación humana.",
+      "resolved": true
+    },
+    "0587bc62-d96c-4a05-9c0c-76730c3416e9": {
+      "questionId": "0587bc62-d96c-4a05-9c0c-76730c3416e9",
+      "sectionId": "test",
+      "answer": {
+        "selectedOptionIds": [
+          "A"
+        ]
+      },
+      "explanation": "Para evitar la contaminación cruzada entre muestras de ADN, debe cambiarse la punta de la micropipeta entre una muestra y otra. Mantener la misma punta, aspirar aire o limpiar solo el exterior no impide el arrastre de material genético residual.",
+      "rubric": {
+        "criteria": [],
+        "totalMax": 0
+      },
+      "proposalIds": [
+        "2e907f24-5102-4d1f-99b7-c33d51cec486"
+      ],
+      "sourceEvidenceIds": [],
+      "humanNote": "Propuesta por deepseek (deepseek-flash); pendiente de aprobación humana.",
+      "resolved": true
+    },
+    "973fd5ed-cb26-4ebb-89b1-80fd1a534eef": {
+      "questionId": "973fd5ed-cb26-4ebb-89b1-80fd1a534eef",
+      "sectionId": "test",
+      "answer": {
+        "selectedOptionIds": [
+          "C"
+        ]
+      },
+      "explanation": "El fenol/cloroformo es tóxico, volátil e irritante, por lo que debe manipularse en campana extractora y con los equipos de protección individual establecidos (bata, guantes y protección ocular según proceda). No es adecuado trabajar solo con bata en la mesa, junto a una ventana sin protección ocular, ni prescindir de guantes.",
+      "rubric": {
+        "criteria": [],
+        "totalMax": 0
+      },
+      "proposalIds": [
+        "2b43dae8-4371-4d43-aacd-7efba73d5397"
+      ],
+      "sourceEvidenceIds": [],
+      "humanNote": "Propuesta por deepseek (deepseek-flash); pendiente de aprobación humana.",
+      "resolved": true
+    },
+    "6e19c7ab-4167-4fd4-ab9f-964707a4ae5b": {
+      "questionId": "6e19c7ab-4167-4fd4-ab9f-964707a4ae5b",
+      "sectionId": "test",
+      "answer": {
+        "selectedOptionIds": [
+          "B"
+        ]
+      },
+      "explanation": "El vórtex es el equipo diseñado para agitar o mezclar rápidamente muestras contenidas en microtubos mediante vibración. El espectrofotómetro mide absorbancia, el micrótomo corta secciones histológicas y el transiluminador ilumina geles, por lo que no sirven para mezclar.",
+      "rubric": {
+        "criteria": [],
+        "totalMax": 0
+      },
+      "proposalIds": [
+        "4c7fa765-1a3b-4ab9-a4f4-dfb3bb1f0d7e"
+      ],
+      "sourceEvidenceIds": [],
+      "humanNote": "Propuesta por deepseek (deepseek-flash); pendiente de aprobación humana.",
+      "resolved": true
+    },
+    "7a6ba2df-6ef2-464b-ac2b-d343bc1a9a29": {
+      "questionId": "7a6ba2df-6ef2-464b-ac2b-d343bc1a9a29",
+      "sectionId": "test",
+      "answer": {
+        "selectedOptionIds": [
+          "A"
+        ]
+      },
+      "explanation": "Tras la centrifugación, el sedimento o pellet es el material sólido acumulado en el fondo del tubo, mientras que el sobrenadante es el líquido que queda por encima de dicho sedimento. Por tanto, la opción A describe correctamente ambas fracciones.",
+      "rubric": {
+        "criteria": [],
+        "totalMax": 0
+      },
+      "proposalIds": [
+        "2e61df05-10d9-4da8-a45d-4cc2f3fd9067"
+      ],
+      "sourceEvidenceIds": [],
+      "humanNote": "Propuesta por deepseek (deepseek-flash); pendiente de aprobación humana.",
+      "resolved": true
+    },
+    "625b9bb2-70a4-47e2-9ccd-bb309c36e9ff": {
+      "questionId": "625b9bb2-70a4-47e2-9ccd-bb309c36e9ff",
+      "sectionId": "test",
+      "answer": {
+        "selectedOptionIds": [
+          "D"
+        ]
+      },
+      "explanation": "La identificación debe mantenerse de forma robusta durante todo el procedimiento, especialmente al compartir gradillas o trabajar con muestras de otros grupos. La opción D es la única que garantiza una identificación inequívoca y duradera mediante rotulación con muestra y grupo; las demás dependen de la posición, la memoria o el volumen y son propensas a errores.",
+      "rubric": {
+        "criteria": [],
+        "totalMax": 0
+      },
+      "proposalIds": [
+        "f242d984-2b8a-498e-b0e5-d91008a6b358"
+      ],
+      "sourceEvidenceIds": [],
+      "humanNote": "Propuesta por deepseek (deepseek-flash); pendiente de aprobación humana.",
+      "resolved": true
+    },
+    "12c6fdb6-ec34-4fe8-9e16-78453b59e591": {
+      "questionId": "12c6fdb6-ec34-4fe8-9e16-78453b59e591",
+      "sectionId": "test",
+      "answer": {
+        "selectedOptionIds": [
+          "C"
+        ]
+      },
+      "explanation": "El factor de dilución se calcula como volumen final dividido entre el volumen de muestra: (10 μL + 190 μL) / 10 μL = 200 / 10 = 20. Por tanto, la dilución es 1:20 y el factor de dilución es 20.",
+      "rubric": {
+        "criteria": [],
+        "totalMax": 0
+      },
+      "proposalIds": [
+        "1f1da937-b91d-4bf3-9f33-99c624e0b6fa"
+      ],
+      "sourceEvidenceIds": [],
+      "humanNote": "Propuesta por deepseek (deepseek-flash); pendiente de aprobación humana.",
+      "resolved": true
+    },
+    "24f893c6-4d81-4ce1-95c2-a545046d98a7": {
+      "questionId": "24f893c6-4d81-4ce1-95c2-a545046d98a7",
+      "sectionId": "test",
+      "answer": {
+        "selectedOptionIds": [
+          "B"
+        ]
+      },
+      "explanation": "Se necesitan 500 μL a 20 ng/μL, es decir, 500 × 20 = 10.000 ng de ADN. Como la disolución madre tiene 200 ng/μL, el volumen necesario es 10.000 / 200 = 50 μL. Para completar hasta 500 μL deben añadirse 450 μL de agua, por lo que se mezclan 50 μL de ADN con 450 μL de agua.",
+      "rubric": {
+        "criteria": [],
+        "totalMax": 0
+      },
+      "proposalIds": [
+        "1ce8640c-2377-471f-8198-0bb38e8205c1"
+      ],
+      "sourceEvidenceIds": [],
+      "humanNote": "Propuesta por deepseek (deepseek-flash); pendiente de aprobación humana.",
+      "resolved": true
+    },
+    "8e4ca5bf-97ea-43ac-bbf0-42a62b438454": {
+      "questionId": "8e4ca5bf-97ea-43ac-bbf0-42a62b438454",
+      "sectionId": "test",
+      "answer": {
+        "selectedOptionIds": [
+          "D"
+        ]
+      },
+      "explanation": "Primera dilución: 10 μL de muestra + 90 μL de agua = 100 μL totales, factor de dilución 10; la concentración pasa de 100 ng/μL a 10 ng/μL. Segunda dilución: 20 μL de la dilución + 80 μL de agua = 100 μL totales, factor de dilución 5; la concentración final es 10 ng/μL ÷ 5 = 2 ng/μL.",
+      "rubric": {
+        "criteria": [],
+        "totalMax": 0
+      },
+      "proposalIds": [
+        "9e91d103-2aec-4b8b-a56d-2fe03a6c17d9"
+      ],
+      "sourceEvidenceIds": [],
+      "humanNote": "Propuesta por deepseek (deepseek-flash); pendiente de aprobación humana.",
+      "resolved": true
+    },
+    "41d37c6a-7172-43c6-b740-f2ee70a3160e": {
+      "questionId": "41d37c6a-7172-43c6-b740-f2ee70a3160e",
+      "sectionId": "test",
+      "answer": {
+        "selectedOptionIds": [
+          "A"
+        ]
+      },
+      "explanation": "La lisis celular rompe las membranas celulares (y en su caso la pared) para liberar el contenido intracelular, incluido el ADN, permitiendo su posterior aislamiento y purificación. No multiplica el ADN, no separa fragmentos por tamaño ni mide concentración.",
+      "rubric": {
+        "criteria": [],
+        "totalMax": 0
+      },
+      "proposalIds": [
+        "18c04927-62f7-4ed9-8370-be83c32e013c"
+      ],
+      "sourceEvidenceIds": [],
+      "humanNote": "Propuesta por deepseek (deepseek-flash); pendiente de aprobación humana.",
+      "resolved": true
+    },
+    "b84b510d-f4b9-43f5-9bd6-67039ca5ab63": {
+      "questionId": "b84b510d-f4b9-43f5-9bd6-67039ca5ab63",
+      "sectionId": "test",
+      "answer": {
+        "selectedOptionIds": [
+          "C"
+        ]
+      },
+      "explanation": "El NP40 es un detergente no iónico utilizado en protocolos de extracción de ADN de muestras bucales para lisar células: desorganiza las membranas celulares y ayuda a solubilizar/desnaturalizar componentes proteicos, liberando el ADN. No tiñe ADN, no sintetiza ADN ni separa fragmentos por electroforesis.",
+      "rubric": {
+        "criteria": [],
+        "totalMax": 0
+      },
+      "proposalIds": [
+        "9a2b0e2a-ae38-4997-a724-55aadede7648"
+      ],
+      "sourceEvidenceIds": [],
+      "humanNote": "Propuesta por deepseek (deepseek-flash); pendiente de aprobación humana.",
+      "resolved": true
+    },
+    "f24dae88-d0dd-4bc7-9a31-e34ff2c8bff4": {
+      "questionId": "f24dae88-d0dd-4bc7-9a31-e34ff2c8bff4",
+      "sectionId": "test",
+      "answer": {
+        "selectedOptionIds": [
+          "B"
+        ]
+      },
+      "explanation": "La proteinasa K es una enzima proteolítica que digiere proteínas, incluidas nucleasas y proteínas asociadas al ADN, favoreciendo su eliminación y la purificación del ADN. No degrada el ADN, no convierte ARN en ADN ni sustituye al alcohol en la precipitación.",
+      "rubric": {
+        "criteria": [],
+        "totalMax": 0
+      },
+      "proposalIds": [
+        "170f7d1c-b265-4774-9d28-b05671cfc988"
+      ],
+      "sourceEvidenceIds": [],
+      "humanNote": "Propuesta por deepseek (deepseek-flash); pendiente de aprobación humana.",
+      "resolved": true
+    },
+    "579bc537-49e3-49c3-9851-4977a7d3a2d6": {
+      "questionId": "579bc537-49e3-49c3-9851-4977a7d3a2d6",
+      "sectionId": "test",
+      "answer": {
+        "selectedOptionIds": [
+          "D"
+        ]
+      },
+      "explanation": "Tras precipitar proteínas y restos celulares con NaCl concentrado y centrifugar, el ADN queda en el sobrenadante. Por tanto, se transfiere el sobrenadante a un tubo limpio, evitando arrastrar el sedimento, antes de añadir isopropanol para precipitar el ADN.",
+      "rubric": {
+        "criteria": [],
+        "totalMax": 0
+      },
+      "proposalIds": [
+        "433233fa-3ee3-42c9-a9c9-8e8c971227f2"
+      ],
+      "sourceEvidenceIds": [],
+      "humanNote": "Propuesta por deepseek (deepseek-flash); pendiente de aprobación humana.",
+      "resolved": true
+    },
+    "a31b6524-6f8c-426a-9587-58ded6dd4de4": {
+      "questionId": "a31b6524-6f8c-426a-9587-58ded6dd4de4",
+      "sectionId": "test",
+      "answer": {
+        "selectedOptionIds": [
+          "A"
+        ]
+      },
+      "explanation": "En la extracción orgánica (fenol-cloroformo), los ácidos nucleicos quedan en la fase acuosa superior, mientras que proteínas y otros contaminantes se acumulan en la interfase o en la fase orgánica inferior. Por ello se recupera la fase acuosa superior evitando arrastrar la interfase.",
+      "rubric": {
+        "criteria": [],
+        "totalMax": 0
+      },
+      "proposalIds": [
+        "39a39fb4-ef6c-4de7-bf20-20be0ac349da"
+      ],
+      "sourceEvidenceIds": [],
+      "humanNote": "Propuesta por deepseek (deepseek-flash); pendiente de aprobación humana.",
+      "resolved": true
+    },
+    "af91e421-a56f-4272-8eb6-ae48e2bc1932": {
+      "questionId": "af91e421-a56f-4272-8eb6-ae48e2bc1932",
+      "sectionId": "test",
+      "answer": {
+        "selectedOptionIds": [
+          "C"
+        ]
+      },
+      "explanation": "El isopropanol frío disminuye la solubilidad del ADN en medio acuoso, lo que favorece su precipitación y permite recuperarlo por centrifugación. No aumenta su solubilidad, no degrada proteínas ni separa el ADN por tamaños.",
+      "rubric": {
+        "criteria": [],
+        "totalMax": 0
+      },
+      "proposalIds": [
+        "ef00e872-56e5-4f73-bccb-d61ab3b8918e"
+      ],
+      "sourceEvidenceIds": [],
+      "humanNote": "Propuesta por deepseek (deepseek-flash); pendiente de aprobación humana.",
+      "resolved": true
+    },
+    "72ad439b-4e45-424a-b53e-18bdfe2f1a56": {
+      "questionId": "72ad439b-4e45-424a-b53e-18bdfe2f1a56",
+      "sectionId": "test",
+      "answer": {
+        "selectedOptionIds": [
+          "B"
+        ]
+      },
+      "explanation": "El lavado con etanol al 70 % sirve para eliminar sales, restos de tampón y otras impurezas del precipitado de ADN, ya que el ADN es poco soluble en etanol y permanece precipitado mientras las impurezas se arrastran.",
+      "rubric": {
+        "criteria": [],
+        "totalMax": 0
+      },
+      "proposalIds": [
+        "d9affc42-d918-4b15-848c-c32223aee8c1"
+      ],
+      "sourceEvidenceIds": [],
+      "humanNote": "Propuesta por deepseek (deepseek-flash); pendiente de aprobación humana.",
+      "resolved": true
+    },
+    "e2490dce-226b-45cb-8251-6b933f0eb72e": {
+      "questionId": "e2490dce-226b-45cb-8251-6b933f0eb72e",
+      "sectionId": "test",
+      "answer": {
+        "selectedOptionIds": [
+          "D"
+        ]
+      },
+      "explanation": "En espectrofotometría, el blanco sirve para descontar la absorbancia del disolvente y de los componentes distintos del analito. Si la muestra de ADN está disuelta en tampón TE, el blanco debe ser el mismo tampón TE, en las mismas condiciones, pero sin ADN. Así se corrige la señal debida al medio y no se introducen sustancias que alteren la lectura.",
+      "rubric": {
+        "criteria": [],
+        "totalMax": 0
+      },
+      "proposalIds": [
+        "dcabe54e-ca5c-4564-8724-ff15c342bf5b"
+      ],
+      "sourceEvidenceIds": [],
+      "humanNote": "Propuesta por deepseek (deepseek-flash); pendiente de aprobación humana.",
+      "resolved": true
+    },
+    "fdf2eaed-5620-4297-a808-af0537197043": {
+      "questionId": "fdf2eaed-5620-4297-a808-af0537197043",
+      "sectionId": "test",
+      "answer": {
+        "selectedOptionIds": [
+          "C"
+        ]
+      },
+      "explanation": "La dilución presenta A260 = 0,40. Como A260 = 1 equivale a 50 μg/mL, la concentración de la dilución es 0,40 × 50 = 20 μg/mL. Al tratarse de una dilución 1:20, la muestra original era 20 veces más concentrada: 20 × 20 = 400 μg/mL.",
+      "rubric": {
+        "criteria": [],
+        "totalMax": 0
+      },
+      "proposalIds": [
+        "894e65e1-5e0c-44d7-b871-f9bca8e9e0b9"
+      ],
+      "sourceEvidenceIds": [],
+      "humanNote": "Propuesta por deepseek (deepseek-flash); pendiente de aprobación humana.",
+      "resolved": true
+    },
+    "6cc28d66-4144-4149-a8a1-6e84bc24b596": {
+      "questionId": "6cc28d66-4144-4149-a8a1-6e84bc24b596",
+      "sectionId": "test",
+      "answer": {
+        "selectedOptionIds": [
+          "A"
+        ]
+      },
+      "explanation": "La relación A260/A280 se calcula dividiendo 0,36 entre 0,20, lo que da 1,8. En ADN de doble cadena, un valor cercano a 1,8 se considera compatible con ADN relativamente puro. No obstante, esta relación no demuestra por sí sola que el ADN esté íntegro, por lo que la opción C es demasiado concluyente.",
+      "rubric": {
+        "criteria": [],
+        "totalMax": 0
+      },
+      "proposalIds": [
+        "a60e7976-74df-4ad1-9990-407dca70f600"
+      ],
+      "sourceEvidenceIds": [],
+      "humanNote": "Propuesta por deepseek (deepseek-flash); pendiente de aprobación humana.",
+      "resolved": true
+    },
+    "cb0f0d14-4067-4a26-9b80-dabf9a8f1263": {
+      "questionId": "cb0f0d14-4067-4a26-9b80-dabf9a8f1263",
+      "sectionId": "test",
+      "answer": {
+        "selectedOptionIds": [
+          "D"
+        ]
+      },
+      "explanation": "A260/A280 = 0,36/0,30 = 1,2, inferior al valor esperado para ADN relativamente puro (≈1,8). A260/A230 = 0,36/0,40 = 0,9, también inferior al esperado (habitualmente ≈2,0 o superior). Ambas relaciones bajas sugieren contaminación, pero no permiten identificar de forma inequívoca el contaminante.",
+      "rubric": {
+        "criteria": [],
+        "totalMax": 0
+      },
+      "proposalIds": [
+        "c90b54fe-d46e-4987-a4a9-4c978b538106"
+      ],
+      "sourceEvidenceIds": [],
+      "humanNote": "Propuesta por deepseek (deepseek-flash); pendiente de aprobación humana.",
+      "resolved": true
+    },
+    "128bbdb7-4cbb-4a10-813c-49996c964600": {
+      "questionId": "128bbdb7-4cbb-4a10-813c-49996c964600",
+      "sectionId": "test",
+      "answer": {
+        "selectedOptionIds": [
+          "B"
+        ]
+      },
+      "explanation": "La cantidad total de ADN se calcula multiplicando concentración por volumen. Muestra A: 100 ng/μL × 200 μL = 20 000 ng = 20 μg. Muestra B: 60 ng/μL × 500 μL = 30 000 ng = 30 μg. Por tanto, la muestra B contiene mayor cantidad total de ADN (30 μg frente a 20 μg).",
+      "rubric": {
+        "criteria": [],
+        "totalMax": 0
+      },
+      "proposalIds": [
+        "4bf490ca-aca7-46c6-b1c6-80dfe5086510"
+      ],
+      "sourceEvidenceIds": [],
+      "humanNote": "Propuesta por deepseek (deepseek-flash); pendiente de aprobación humana.",
+      "resolved": true
+    },
+    "62b820aa-ff03-463d-850d-9da3354b35bf": {
+      "questionId": "62b820aa-ff03-463d-850d-9da3354b35bf",
+      "sectionId": "test",
+      "answer": {
+        "selectedOptionIds": [
+          "C"
+        ]
+      },
+      "explanation": "El ADN posee grupos fosfato en su esqueleto azúcar-fosfato que, a pH fisiológico o en el tampón de electroforesis, están ionizados y aportan carga neta negativa. Por ello migra hacia el electrodo positivo (ánodo) cuando se aplica un campo eléctrico. Las demás opciones son incorrectas: las bases no confieren carga positiva neta relevante, la agarosa no transforma la carga y el tampón de carga no neutraliza el ADN.",
+      "rubric": {
+        "criteria": [],
+        "totalMax": 0
+      },
+      "proposalIds": [
+        "4b638094-b44b-488b-b6d7-d90b233ab336"
+      ],
+      "sourceEvidenceIds": [],
+      "humanNote": "Propuesta por deepseek (deepseek-flash); pendiente de aprobación humana.",
+      "resolved": true
+    },
+    "5973eed0-776a-46c4-9e61-3fd0db65d09c": {
+      "questionId": "5973eed0-776a-46c4-9e61-3fd0db65d09c",
+      "sectionId": "test",
+      "answer": {
+        "selectedOptionIds": [
+          "A"
+        ]
+      },
+      "explanation": "En una electroforesis en gel de agarosa, los fragmentos de ADN más pequeños migran más rápidamente y recorren mayor distancia desde el pocillo, ya que encuentran menor resistencia en la malla del gel. Por tanto, el fragmento de 500 pb migra más lejos que el de 2000 pb.",
+      "rubric": {
+        "criteria": [],
+        "totalMax": 0
+      },
+      "proposalIds": [
+        "41bb170b-a546-47c2-afd6-a30c47f20f3b"
+      ],
+      "sourceEvidenceIds": [],
+      "humanNote": "Propuesta por deepseek (deepseek-flash); pendiente de aprobación humana.",
+      "resolved": true
+    },
+    "614a4f42-8fa5-4b39-8c4b-2498a663cec4": {
+      "questionId": "614a4f42-8fa5-4b39-8c4b-2498a663cec4",
+      "sectionId": "test",
+      "answer": {
+        "selectedOptionIds": [
+          "D"
+        ]
+      },
+      "explanation": "Un gel de agarosa al 1 % m/v contiene 1 g de agarosa por cada 100 mL de disolución final. Para preparar 50 mL se necesitan la mitad: 1 g × (50 mL / 100 mL) = 0,5 g.",
+      "rubric": {
+        "criteria": [],
+        "totalMax": 0
+      },
+      "proposalIds": [
+        "854f3ada-3ddd-4416-a29e-f5242fcea28e"
+      ],
+      "sourceEvidenceIds": [],
+      "humanNote": "Propuesta por deepseek (deepseek-flash); pendiente de aprobación humana.",
+      "resolved": true
+    },
+    "ddb080bc-fa1c-474f-af8f-a25d3abeab89": {
+      "questionId": "ddb080bc-fa1c-474f-af8f-a25d3abeab89",
+      "sectionId": "test",
+      "answer": {
+        "selectedOptionIds": [
+          "B"
+        ]
+      },
+      "explanation": "El glicerol o la sacarosa del tampón de carga aumentan la densidad de la muestra, lo que facilita que se deposite y permanezca en el pocillo antes de migrar durante la electroforesis. No cortan el ADN, no sustituyen al tampón de electroforesis ni proporcionan fluorescencia específica al ADN.",
+      "rubric": {
+        "criteria": [],
+        "totalMax": 0
+      },
+      "proposalIds": [
+        "3e0508f6-9235-4e4b-94fa-0d0ad1c4e94d"
+      ],
+      "sourceEvidenceIds": [],
+      "humanNote": "Propuesta por deepseek (deepseek-flash); pendiente de aprobación humana.",
+      "resolved": true
+    },
+    "56d5a6d5-7458-466f-b78b-dd3b3b413233": {
+      "questionId": "56d5a6d5-7458-466f-b78b-dd3b3b413233",
+      "sectionId": "test",
+      "answer": {
+        "selectedOptionIds": [
+          "C"
+        ]
+      },
+      "explanation": "El tampón TAE o TBE aporta iones y capacidad tamponante que permiten conducir la corriente y mantener un pH adecuado durante la electroforesis. Si se usa solo agua, faltan esas condiciones iónicas y de estabilización del pH, por lo que la separación del ADN no es adecuada. Las demás opciones son incorrectas: el agua no convierte el ADN en proteínas, los pocillos dependen del molde/soporte, y el ADN no pierde permanentemente sus grupos fosfato por usar agua.",
+      "rubric": {
+        "criteria": [],
+        "totalMax": 0
+      },
+      "proposalIds": [
+        "854b1b4c-2e5f-4503-8c7c-20723d668b10"
+      ],
+      "sourceEvidenceIds": [],
+      "humanNote": "Propuesta por deepseek (deepseek-flash); pendiente de aprobación humana.",
+      "resolved": true
+    },
+    "c1a02084-6e6d-496c-8c57-f1ccd04e2cc6": {
+      "questionId": "c1a02084-6e6d-496c-8c57-f1ccd04e2cc6",
+      "sectionId": "test",
+      "answer": {
+        "selectedOptionIds": [
+          "A"
+        ]
+      },
+      "explanation": "El marcador de tamaños de ADN contiene fragmentos de tamaños conocidos. Al cargarlo junto a las muestras y separarlo en la misma electroforesis, sus bandas sirven de referencia para estimar por comparación el tamaño de los fragmentos presentes en las muestras. Las demás opciones no describen esa función.",
+      "rubric": {
+        "criteria": [],
+        "totalMax": 0
+      },
+      "proposalIds": [
+        "f6d328c5-c0cc-4ed1-be7d-4b9ce33693e8"
+      ],
+      "sourceEvidenceIds": [],
+      "humanNote": "Propuesta por deepseek (deepseek-flash); pendiente de aprobación humana.",
+      "resolved": true
+    },
+    "081b2570-ad76-4cf5-84fb-f84e175b4af5": {
+      "questionId": "081b2570-ad76-4cf5-84fb-f84e175b4af5",
+      "sectionId": "test",
+      "answer": {
+        "selectedOptionIds": [
+          "D"
+        ]
+      },
+      "explanation": "El ADN está cargado negativamente y migra hacia el polo positivo. Por tanto, los pocillos deben situarse junto al polo negativo para que las muestras entren en el gel y se separen al avanzar hacia el ánodo. Si los pocillos están junto al polo positivo, debe girarse el gel para colocarlos junto al polo negativo antes de iniciar la electroforesis.",
+      "rubric": {
+        "criteria": [],
+        "totalMax": 0
+      },
+      "proposalIds": [
+        "35948e1e-9c0a-4452-ab3c-126f123fe7da"
+      ],
+      "sourceEvidenceIds": [],
+      "humanNote": "Propuesta por deepseek (deepseek-flash); pendiente de aprobación humana.",
+      "resolved": true
+    },
+    "e311c83b-48b2-44c8-ad5d-c9b959202574": {
+      "questionId": "e311c83b-48b2-44c8-ad5d-c9b959202574",
+      "sectionId": "test",
+      "answer": {
+        "selectedOptionIds": [
+          "B"
+        ]
+      },
+      "explanation": "Una relación A260/A280 de 1,8 es compatible con ADN razonablemente puro. El patrón del carril X descrito como arrastre o smear sugiere fragmentación/degradación del ADN, no que la muestra sea exclusivamente proteínas ni que la absorbancia permita descartar alteraciones. Por tanto, la conclusión mejor fundamentada es que la muestra puede tener pureza espectrofotométrica aceptable y ADN fragmentado.",
+      "rubric": {
+        "criteria": [],
+        "totalMax": 0
+      },
+      "proposalIds": [
+        "18abbb6c-cb55-4d7f-b61f-683fb9f5c008"
+      ],
+      "sourceEvidenceIds": [],
+      "humanNote": "Propuesta por deepseek (deepseek-flash); pendiente de aprobación humana.",
+      "resolved": true
+    },
+    "6cba06a3-a399-4a7b-a8aa-5cc9a1cff016": {
+      "questionId": "6cba06a3-a399-4a7b-a8aa-5cc9a1cff016",
+      "sectionId": "test",
+      "answer": {
+        "selectedOptionIds": [
+          "D"
+        ]
+      },
+      "explanation": "El ADN está cargado negativamente debido a los grupos fosfato, por lo que migra hacia el electrodo positivo (ánodo). Normalmente los pocillos están junto al polo negativo y el ADN se desplaza alejándose de ellos hacia el polo positivo. Si se invierte la polaridad y los pocillos quedan junto al polo positivo, el ADN seguirá migrando hacia el polo positivo, es decir, en sentido contrario al habitual (hacia los pocillos).",
+      "rubric": {
+        "criteria": [],
+        "totalMax": 0
+      },
+      "proposalIds": [
+        "8cc09a8d-746a-4f0d-a102-a672bc46b0f8"
+      ],
+      "sourceEvidenceIds": [],
+      "humanNote": "Propuesta por deepseek (deepseek-flash); pendiente de aprobación humana.",
+      "resolved": true
+    },
+    "debbf265-55dc-4d74-981d-09986f5f84fc": {
+      "questionId": "debbf265-55dc-4d74-981d-09986f5f84fc",
+      "sectionId": "test",
+      "answer": {
+        "selectedOptionIds": [
+          "A"
+        ]
+      },
+      "explanation": "Para obtener 200 ng de ADN a 50 ng/μL se necesitan 200/50 = 4 μL de muestra. Para que el tampón de carga 6X quede a 1X en un volumen final de 12 μL, se requiere 12/6 = 2 μL de tampón 6X. El resto hasta 12 μL es agua: 12 − 4 − 2 = 6 μL. Por tanto, la mezcla correcta es 4 μL de ADN + 2 μL de tampón 6X + 6 μL de agua.",
+      "rubric": {
+        "criteria": [],
+        "totalMax": 0
+      },
+      "proposalIds": [
+        "40950962-ef8e-4f6c-b076-c51da49f649a"
+      ],
+      "sourceEvidenceIds": [],
+      "humanNote": "Propuesta por deepseek (deepseek-flash); pendiente de aprobación humana.",
+      "resolved": true
+    },
+    "d99befd8-c842-41ca-8f08-7c8cc0926490": {
+      "questionId": "d99befd8-c842-41ca-8f08-7c8cc0926490",
+      "sectionId": "test",
+      "answer": {
+        "selectedOptionIds": [
+          "B"
+        ]
+      },
+      "explanation": "La plataforma horizontal donde se coloca el portaobjetos en un microscopio óptico se denomina platina. El condensador concentra la luz, el revólver sostiene los objetivos y el ocular es la lente de observación.",
+      "rubric": {
+        "criteria": [],
+        "totalMax": 0
+      },
+      "proposalIds": [
+        "6a1e9f11-f2ab-4c50-84da-7840666dd9f6"
+      ],
+      "sourceEvidenceIds": [],
+      "humanNote": "Propuesta por deepseek (deepseek-flash); pendiente de aprobación humana.",
+      "resolved": true
+    },
+    "800a49b4-c5ff-4b11-b015-694ad60cbd9b": {
+      "questionId": "800a49b4-c5ff-4b11-b015-694ad60cbd9b",
+      "sectionId": "test",
+      "answer": {
+        "selectedOptionIds": [
+          "D"
+        ]
+      },
+      "explanation": "El aumento total de un microscopio óptico se calcula multiplicando el aumento del ocular por el aumento del objetivo: 10× × 40× = 400×. Por tanto, la opción correcta es D.",
+      "rubric": {
+        "criteria": [],
+        "totalMax": 0
+      },
+      "proposalIds": [
+        "3c8a8025-c360-40a4-bd58-2bb9cededac7"
+      ],
+      "sourceEvidenceIds": [],
+      "humanNote": "Propuesta por deepseek (deepseek-flash); pendiente de aprobación humana.",
+      "resolved": true
+    },
+    "c5d8e433-5ca7-46b7-98ee-c1301b52f9a8": {
+      "questionId": "c5d8e433-5ca7-46b7-98ee-c1301b52f9a8",
+      "sectionId": "test",
+      "answer": {
+        "selectedOptionIds": [
+          "C"
+        ]
+      },
+      "explanation": "Con el objetivo de menor aumento se obtiene un campo de visión más amplio, lo que facilita explorar la preparación y localizar la zona de interés antes de pasar a aumentos mayores.",
+      "rubric": {
+        "criteria": [],
+        "totalMax": 0
+      },
+      "proposalIds": [
+        "afc51d70-d28f-4a95-8e5f-cf69a16f30a5"
+      ],
+      "sourceEvidenceIds": [],
+      "humanNote": "Propuesta por deepseek (deepseek-flash); pendiente de aprobación humana.",
+      "resolved": true
+    },
+    "13a79848-5e9c-4610-acc9-3926fc28dc71": {
+      "questionId": "13a79848-5e9c-4610-acc9-3926fc28dc71",
+      "sectionId": "test",
+      "answer": {
+        "selectedOptionIds": [
+          "A"
+        ]
+      },
+      "explanation": "Al pasar de 10× a 40×, el enfoque debe corregirse con el tornillo micrométrico, que permite ajustes finos sin riesgo de golpear la muestra con el objetivo. El macrométrico se usa para movimientos amplios, normalmente con objetivos de menor aumento.",
+      "rubric": {
+        "criteria": [],
+        "totalMax": 0
+      },
+      "proposalIds": [
+        "76792cd3-0504-4d2c-9963-4e0dc3f29bf4"
+      ],
+      "sourceEvidenceIds": [],
+      "humanNote": "Propuesta por deepseek (deepseek-flash); pendiente de aprobación humana.",
+      "resolved": true
+    },
+    "2b40a73f-95c6-4bee-9892-b33f746641b4": {
+      "questionId": "2b40a73f-95c6-4bee-9892-b33f746641b4",
+      "sectionId": "test",
+      "answer": {
+        "selectedOptionIds": [
+          "D"
+        ]
+      },
+      "explanation": "Al cambiar a un objetivo de mayor aumento, el campo de visión se reduce y la profundidad de campo disminuye. Por ello, conviene centrar previamente la célula en el campo con el objetivo de menor aumento; así queda en la zona que seguirá siendo visible y es más fácil localizarla y enfocarla con el objetivo de mayor aumento. Las demás opciones no ayudan a mantener localizada la célula o incluso dificultan la observación.",
+      "rubric": {
+        "criteria": [],
+        "totalMax": 0
+      },
+      "proposalIds": [
+        "3d34a87d-54dc-4a79-b277-f4f436b86d34"
+      ],
+      "sourceEvidenceIds": [],
+      "humanNote": "Propuesta por deepseek (deepseek-flash); pendiente de aprobación humana.",
+      "resolved": true
+    },
+    "d2c0e3a4-d982-483f-bfb1-17fd69f5c42b": {
+      "questionId": "d2c0e3a4-d982-483f-bfb1-17fd69f5c42b",
+      "sectionId": "test",
+      "answer": {
+        "selectedOptionIds": [
+          "D"
+        ]
+      },
+      "explanation": "La tinción panóptica descrita sigue el orden: primero se fija la muestra, después se aplica el colorante básico, que tiñe estructuras ácidas como los núcleos, y finalmente la eosina, que tiñe componentes básicos como el citoplasma. Por tanto, el orden correcto es fijador → colorante básico → eosina.",
+      "rubric": {
+        "criteria": [],
+        "totalMax": 0
+      },
+      "proposalIds": [
+        "5a33e031-5862-4cd3-91f4-ca1dd3829bd7"
+      ],
+      "sourceEvidenceIds": [],
+      "humanNote": "Propuesta por deepseek (deepseek-flash); pendiente de aprobación humana.",
+      "resolved": true
+    },
+    "5d65621a-89f3-4da1-be05-40db4c000fc4": {
+      "questionId": "5d65621a-89f3-4da1-be05-40db4c000fc4",
+      "sectionId": "test",
+      "answer": {
+        "selectedOptionIds": [
+          "A"
+        ]
+      },
+      "explanation": "Los núcleos se tiñen de azul porque los colorantes básicos de la tinción panóptica se unen a componentes celulares ácidos, especialmente los ácidos nucleicos. Las demás opciones son incorrectas: la eosina no se une exclusivamente al ADN, el fijador no genera pigmentos azules y la coloración azul no indica ausencia de material genético.",
+      "rubric": {
+        "criteria": [],
+        "totalMax": 0
+      },
+      "proposalIds": [
+        "a1761f75-b13c-4a0d-851c-f9de5802ea47"
+      ],
+      "sourceEvidenceIds": [],
+      "humanNote": "Propuesta por deepseek (deepseek-flash); pendiente de aprobación humana.",
+      "resolved": true
+    },
+    "4ea19e0d-52f6-469f-b878-18e93de89eec": {
+      "questionId": "4ea19e0d-52f6-469f-b878-18e93de89eec",
+      "sectionId": "test",
+      "answer": {
+        "selectedOptionIds": [
+          "C"
+        ]
+      },
+      "explanation": "Aumentar el tamaño aparente de la imagen (aumento) no mejora necesariamente la resolución: si dos puntos están más próximos que el límite de resolución del sistema óptico, seguirán viéndose como una sola estructura aunque se amplíen. Por tanto, la conclusión correcta es que aumentar la imagen no garantiza distinguir detalles por debajo de dicho límite.",
+      "rubric": {
+        "criteria": [],
+        "totalMax": 0
+      },
+      "proposalIds": [
+        "5794a8bf-d37a-4d52-a129-a2f07c60de5b"
+      ],
+      "sourceEvidenceIds": [],
+      "humanNote": "Propuesta por deepseek (deepseek-flash); pendiente de aprobación humana.",
+      "resolved": true
+    },
+    "c9a6ca4c-0093-4e7a-a474-8a196253cfa6": {
+      "questionId": "c9a6ca4c-0093-4e7a-a474-8a196253cfa6",
+      "sectionId": "test",
+      "answer": {
+        "selectedOptionIds": [
+          "D"
+        ]
+      },
+      "explanation": "La fijación tiene como finalidad principal preservar la estructura y arquitectura del tejido, además de limitar la degradación enzimática y autolítica de las células antes de continuar con el procesamiento histológico.",
+      "rubric": {
+        "criteria": [],
+        "totalMax": 0
+      },
+      "proposalIds": [
+        "67a78525-7b04-4e9f-8c36-5bf4e755441f"
+      ],
+      "sourceEvidenceIds": [],
+      "humanNote": "Propuesta por deepseek (deepseek-flash); pendiente de aprobación humana.",
+      "resolved": true
+    },
+    "322bf3a7-4a98-468d-905d-6c2c44711550": {
+      "questionId": "322bf3a7-4a98-468d-905d-6c2c44711550",
+      "sectionId": "test",
+      "answer": {
+        "selectedOptionIds": [
+          "B"
+        ]
+      },
+      "explanation": "El micrótomo es el equipo empleado para cortar tejidos incluidos en parafina en secciones finas y uniformes, aptas para su observación microscópica.",
+      "rubric": {
+        "criteria": [],
+        "totalMax": 0
+      },
+      "proposalIds": [
+        "6e863c01-86dd-4790-afd7-95bd80159861"
+      ],
+      "sourceEvidenceIds": [],
+      "humanNote": "Propuesta por deepseek (deepseek-flash); pendiente de aprobación humana.",
+      "resolved": true
+    },
+    "55e41d6b-3d90-4d70-8366-604c5437d200": {
+      "questionId": "55e41d6b-3d90-4d70-8366-604c5437d200",
+      "sectionId": "test",
+      "answer": {
+        "selectedOptionIds": [
+          "A"
+        ]
+      },
+      "explanation": "El panel A se corresponde con la segmentación, etapa de divisiones mitóticas tempranas del cigoto en la que aumentan los blastómeros y disminuye su tamaño, sin aumentar el volumen global del embrión. Las otras opciones corresponden a gastrulación, neurulación o fecundación, procesos con rasgos morfológicos distintos.",
+      "rubric": {
+        "criteria": [],
+        "totalMax": 0
+      },
+      "proposalIds": [
+        "663e58e6-62bd-4047-8f38-5ea3deabcab4"
+      ],
+      "sourceEvidenceIds": [],
+      "humanNote": "Propuesta por deepseek (deepseek-flash); pendiente de aprobación humana.",
+      "resolved": true
+    },
+    "cc037d69-deec-4f9c-adf8-c3b0b04f37ca": {
+      "questionId": "cc037d69-deec-4f9c-adf8-c3b0b04f37ca",
+      "sectionId": "test",
+      "answer": {
+        "selectedOptionIds": [
+          "C"
+        ]
+      },
+      "explanation": "La cavidad amplia del esquema de una sección de embrión de rana, rodeada por células, corresponde al blastocele, cavidad interna de la blástula. El tubo neural y la notocorda son estructuras alargadas, y el somita es una masa celular, no una cavidad amplia.",
+      "rubric": {
+        "criteria": [],
+        "totalMax": 0
+      },
+      "proposalIds": [
+        "2478c4f6-6922-4159-bfe1-9a04bcb69b7b"
+      ],
+      "sourceEvidenceIds": [],
+      "humanNote": "Propuesta por deepseek (deepseek-flash); pendiente de aprobación humana.",
+      "resolved": true
+    },
+    "c6afa0a6-d9b5-4e96-83d2-8a114203e846": {
+      "questionId": "c6afa0a6-d9b5-4e96-83d2-8a114203e846",
+      "sectionId": "test",
+      "answer": {
+        "selectedOptionIds": [
+          "D"
+        ]
+      },
+      "explanation": "Durante la segmentación, el embrión se divide en blastómeros sin aumentar apenas el volumen global: aumentan el número de células y disminuye el tamaño de cada una. Por eso un embrión de dos células y otro con muchas células pueden tener un volumen total similar.",
+      "rubric": {
+        "criteria": [],
+        "totalMax": 0
+      },
+      "proposalIds": [
+        "c9a48257-1baf-45f8-b68d-cd52fe76c9e3"
+      ],
+      "sourceEvidenceIds": [],
+      "humanNote": "Propuesta por deepseek (deepseek-flash); pendiente de aprobación humana.",
+      "resolved": true
+    },
+    "7f0daea1-3207-4234-9f2b-794388b56605": {
+      "questionId": "7f0daea1-3207-4234-9f2b-794388b56605",
+      "sectionId": "test",
+      "answer": {
+        "selectedOptionIds": [
+          "A"
+        ]
+      },
+      "explanation": "En el procesamiento histológico en parafina, primero se fija el tejido para preservar su estructura; después se deshidrata mediante alcoholes, se aclara con un disolvente intermedio, se incluye en parafina y finalmente se corta. Por tanto, la secuencia correcta es fijación → deshidratación → aclaración → inclusión → corte.",
+      "rubric": {
+        "criteria": [],
+        "totalMax": 0
+      },
+      "proposalIds": [
+        "a0139733-ad1a-405d-ad59-9256e1f0321a"
+      ],
+      "sourceEvidenceIds": [],
+      "humanNote": "Propuesta por deepseek (deepseek-flash); pendiente de aprobación humana.",
+      "resolved": true
+    },
+    "a01e30c3-3638-4fd2-a4a1-9dc6904c9879": {
+      "questionId": "a01e30c3-3638-4fd2-a4a1-9dc6904c9879",
+      "sectionId": "test",
+      "answer": {
+        "selectedOptionIds": [
+          "B"
+        ]
+      },
+      "explanation": "La parafina es hidrófoba e impregna el tejido; si no se retira, los colorantes y reactivos acuosos no pueden penetrar ni acceder correctamente al corte. Por ello se desparafina con disolventes orgánicos y después se hidrata mediante baños de alcohol decreciente hasta agua, antes de realizar una tinción acuosa.",
+      "rubric": {
+        "criteria": [],
+        "totalMax": 0
+      },
+      "proposalIds": [
+        "20d16491-81b8-4cdd-b42b-32e651f5e3a8"
+      ],
+      "sourceEvidenceIds": [],
+      "humanNote": "Propuesta por deepseek (deepseek-flash); pendiente de aprobación humana.",
+      "resolved": true
+    },
+    "571a95c6-c351-4a8f-9b80-931cfa5b0adb": {
+      "questionId": "571a95c6-c351-4a8f-9b80-931cfa5b0adb",
+      "sectionId": "test",
+      "answer": {
+        "selectedOptionIds": [
+          "C"
+        ]
+      },
+      "explanation": "La gastrulación es el proceso del desarrollo embrionario en el que el embrión bilaminar se reorganiza y se forman las tres capas germinativas: ectodermo, mesodermo y endodermo. Las otras opciones describen la segmentación, la formación de la cavidad blastocélica o un procedimiento histológico.",
+      "rubric": {
+        "criteria": [],
+        "totalMax": 0
+      },
+      "proposalIds": [
+        "34e84e09-96e5-4edb-9c0b-4ab29ce4b037"
+      ],
+      "sourceEvidenceIds": [],
+      "humanNote": "Propuesta por deepseek (deepseek-flash); pendiente de aprobación humana.",
+      "resolved": true
+    },
+    "d35f76f9-7827-4749-a756-776453e14ed6": {
+      "questionId": "d35f76f9-7827-4749-a756-776453e14ed6",
+      "sectionId": "test",
+      "answer": {
+        "selectedOptionIds": [
+          "D"
+        ]
+      },
+      "explanation": "En un corte transversal de embrión de pollo en neurulación, la flecha P suele señalar la notocorda, estructura axial media ventral al tubo neural.",
+      "rubric": {
+        "criteria": [],
+        "totalMax": 0
+      },
+      "proposalIds": [
+        "29c228c3-5ff3-4e00-ae2b-2aa10ce8b464"
+      ],
+      "sourceEvidenceIds": [],
+      "humanNote": "Propuesta por deepseek (deepseek-flash); pendiente de aprobación humana.",
+      "resolved": true
+    },
+    "43d70e3a-f7f1-470c-85d8-40086e44b927": {
+      "questionId": "43d70e3a-f7f1-470c-85d8-40086e44b927",
+      "sectionId": "test",
+      "answer": {
+        "selectedOptionIds": [
+          "B"
+        ]
+      },
+      "explanation": "Los esquemas I y II corresponden a dos fases sucesivas de la neurulación en el embrión de pollo: los pliegues neurales se elevan, se aproximan y finalmente se fusionan en la línea media para formar el tubo neural. Las demás opciones describen procesos inexistentes o cronológicamente incorrectos.",
+      "rubric": {
+        "criteria": [],
+        "totalMax": 0
+      },
+      "proposalIds": [
+        "17776476-d5d2-4e50-84f4-540f85663a4b"
+      ],
+      "sourceEvidenceIds": [],
+      "humanNote": "Propuesta por deepseek (deepseek-flash); pendiente de aprobación humana.",
+      "resolved": true
+    }
+  },
+  "blockingIssues": [],
+  "approvedBy": "ACPL",
+  "approvedAt": "2026-11-02T22:07:22.274Z",
+  "createdAt": "2026-11-02T21:47:56.061Z",
+  "updatedAt": "2026-11-02T22:07:22.314Z"
+}

@@ -1,10 +1,11 @@
 "use client";
 
 import { uploadExamAsset } from "@/lib/supabase-upload-client";
+import { ExamWorkflowNav } from "@/components/exam-workflow-nav";
 import { useParams } from "next/navigation";
 import { ChangeEvent, useCallback, useEffect, useRef, useState } from "react";
 
-type Submission = { submissionId: string; state: string; pageIds: string[]; assetIds: string[]; suggestedIdentity?: string; identityConfidence?: number; identitySource?: string; confirmedIdentity?: string; readingIds: string[]; snapshotId?: string; responseBlockingIssues?: string[] };
+type Submission = { submissionId: string; state: string; pageIds: string[]; assetIds: string[]; suggestedIdentity?: string; identityConfidence?: number; identitySource?: string; confirmedIdentity?: string; readingIds: string[]; snapshotId?: string; responseBlockingIssues?: string[]; responsesConfirmedAt?: string; comparisonConfirmedAt?: string };
 type ReadingRow = { questionId: string; status: string; selectedOptionIds: string[]; candidateOptionIds: string[]; requiresHumanReview: boolean };
 type Reading = { readingId: string; status: string; rows: ReadingRow[]; errorCode?: string };
 type Page = { pageId: string; sourceAssetId: string; pageNumber: number; rotation: 0 | 90 | 180 | 270 };
@@ -410,6 +411,35 @@ export default function BatchPage() {
     { title: "Finalizar y exportar", detail: "Con todas las entregas cerradas, pulsa «Finalizar lote» y luego inicia la exportación en el panel Exportación del lote." },
   ];
   const currentStep = workflowStep();
+
+  if (!selected) return (
+    <main className="shell">
+      <header className="topbar"><a className="eyebrow" href={`/exams/${params.id}/students`}>Volver a etapas</a><span className="status">Paso 4 · Cola de alumnos</span></header>
+      <section>
+        <h1>Respuestas de los alumnos.</h1>
+        <ExamWorkflowNav current={4} links={[
+          { stage: 1, title: "Examen", href: `/exams/${params.id}`, enabled: true },
+          { stage: 2, title: "Respuestas IA", href: `/exams/${params.id}/answers`, enabled: true },
+          { stage: 3, title: "Plantilla OMR", href: `/exams/${params.id}/omr-template`, enabled: true },
+          { stage: 4, title: "Alumnos", href: `/exams/${params.id}/batches/${params.batchId}`, enabled: true },
+          { stage: 5, title: "Comparar", href: `/exams/${params.id}/batches/${params.batchId}`, enabled: false },
+          { stage: 6, title: "Calificar", href: `/exams/${params.id}/batches/${params.batchId}`, enabled: false },
+        ]} />
+        <p className="intro">Sube varios archivos a la cola. Luego abre cada alumno para confirmar OCR/OMR, comparar y calificarlo de forma individual.</p>
+        {message ? <p className="notice" role="status">{message}</p> : null}
+        {batch ? <section className="panel"><h2>Lote {batch.batchId.slice(0, 8)} · {batch.state}</h2>
+          <label className="label">Subir exámenes de alumnos (PDF o imagen)<input className="input" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" multiple disabled={uploadingStudents || batch.state === "closed"} onChange={uploadStudentExams} /></label>
+          {uploadingStudents ? <p className="intro">Subiendo y registrando entregas...</p> : null}
+          {!submissions.length ? <p className="intro">La cola está vacía.</p> : <div className="page-list">{submissions.map((submission) => <a className="page-row" href={`/exams/${params.id}/batches/${params.batchId}/submissions/${submission.submissionId}/responses`} key={submission.submissionId}>
+            <span>{submission.confirmedIdentity ?? submission.suggestedIdentity ?? `Alumno ${submission.submissionId.slice(0, 8)}`}</span>
+            <span>{submission.state}</span>
+            <span>{submission.responsesConfirmedAt ? "OMR confirmado" : submission.readingIds.length ? "Revisar OMR" : "Pendiente de lectura"}</span>
+            <span>Abrir pantalla 4 →</span>
+          </a>)}</div>}
+        </section> : <p className="notice">Cargando lote…</p>}
+      </section>
+    </main>
+  );
 
   return (
     <main className={`shell ${selected ? "full-step-screen" : ""}`}>

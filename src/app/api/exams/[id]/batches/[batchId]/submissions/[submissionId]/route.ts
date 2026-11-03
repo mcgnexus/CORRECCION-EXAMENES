@@ -1,10 +1,11 @@
 import { z } from "zod";
 import { assertSameOrigin, requireOwner } from "@/lib/auth";
 import { AppError, errorResponse } from "@/lib/errors";
-import { getAnswerKeyRepository, getBatchRepository, getManualDecisionRepository, getOmrReadingRepository, getResponseDecisionRepository, getScoreSnapshotRepository, getSubmissionRepository, getTranscriptionRepository } from "@/repositories";
+import { getAnswerKeyRepository, getBatchRepository, getExamRevisionRepository, getManualDecisionRepository, getOmrReadingRepository, getOmrTemplateRepository, getResponseDecisionRepository, getScoreSnapshotRepository, getStructureProposalRepository, getSubmissionRepository, getTranscriptionRepository } from "@/repositories";
 import { computeScore } from "@/domain/phase3-scoring";
 import { computeMixedScore } from "@/domain/phase4-scoring";
 import type { OmrReading } from "@/domain/phase3-schemas";
+import { comparisonFingerprint } from "@/lib/comparison-fingerprint";
 
 const decisionSchema = z.object({
   readingId: z.string().min(1),
@@ -70,7 +71,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         }
       }
       const refreshed = await getSubmissionRepository().get(ownerId, params.batchId, params.submissionId);
-      if (refreshed) await getSubmissionRepository().update(ownerId, params.batchId, params.submissionId, refreshed.etag, { state: "review" });
+      if (refreshed) await getSubmissionRepository().update(ownerId, params.batchId, params.submissionId, refreshed.etag, { state: "review", responsesConfirmedAt: undefined, responsesConfirmedBy: undefined, responsesFingerprint: undefined, comparisonConfirmedAt: undefined, comparisonConfirmedBy: undefined, comparisonAnswerKeyRevisionId: undefined, comparisonFingerprint: undefined, snapshotId: undefined });
       return Response.json({ ok: true, requestId }, { headers: { "x-request-id": requestId } });
     }
 
@@ -79,7 +80,54 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       const input = identitySchema.parse(body);
       const refreshed = await getSubmissionRepository().get(ownerId, params.batchId, params.submissionId);
       if (!refreshed) throw new AppError("NOT_FOUND", "Entrega no encontrada.", 404);
-      const updated = await getSubmissionRepository().update(ownerId, params.batchId, params.submissionId, refreshed.etag, { confirmedIdentity: input.identity, confirmedBy: ownerId, confirmedAt: new Date().toISOString(), identitySource: "manual", state: "review" });
+      const updated = await getSubmissionRepository().update(ownerId, params.batchId, params.submissionId, refreshed.etag, { confirmedIdentity: input.identity, confirmedBy: ownerId, confirmedAt: new Date().toISOString(), identitySource: "manual", state: "review", comparisonConfirmedAt: undefined, comparisonConfirmedBy: undefined, comparisonAnswerKeyRevisionId: undefined, comparisonFingerprint: undefined, snapshotId: undefined });
+      return Response.json({ data: updated.value, requestId }, { headers: { "x-request-id": requestId } });
+    }
+
+    if (body.action === "correct-answer") {
+      const input = z.object({ readingId: z.string().uuid(), questionId: z.string().min(1), selectedOptionIds: z.array(z.string().min(1)).max(1), reason: z.string().min(1).max(500) }).parse(body);
+      if (!submission.value.confirmedIdentity) throw new AppError("SUBMISSION_UNASSIGNED", "Confirma la identidad antes de corregir respuestas.", 409);
+      const reading = await getOmrReadingRepository().get(ownerId, input.readingId);
+      if (!reading || reading.value.submissionId !== params.submissionId) throw new AppError("INVALID_READING", "La lectura no pertenece a esta entrega.", 400);
+      const row = reading.value.rows.find((item) => item.questionId === input.questionId);
+      if (!row) throw new AppError("OMR_ROW_NOT_FOUND", "La pregunta no aparece en la lectura.", 404);
+      const template = await getOmrTemplateRepository().get(ownerId, params.id, batch.value.templateRevisionId);
+      const answerKey = await getAnswerKeyRepository().get(ownerId, params.id, batch.value.answerKeyRevisionId);
+      const revision = answerKey ? await getExamRevisionRepository().get(ownerId, params.id, answerKey.value.examRevisionId) : null;
+      const structure = revision?.value.activeStructureProposalId ? await getStructureProposalRepository().get(ownerId, params.id, revision.value.activeStructureProposalId) : null;
+      const question = structure?.value.questions.find((item) => item.questionId === input.questionId);
+      const aliases = new Set([input.questionId, ...(question ? [String(question.number), question.label] : [])]);
+      const validOptions = new Set(template?.value.bubbles.filter((bubble) => aliases.has(bubble.questionId)).map((bubble) => bubble.optionId) ?? []);
+      if (input.selectedOptionIds.some((optionId) => !validOptions.has(optionId))) throw new AppError("INVALID_OMR_OPTION", "La opción no pertenece a esta pregunta.", 400);
+      const resolvedStatus = input.selectedOptionIds.length ? "single" : "blank";
+      await getOmrReadingRepository().update(ownerId, input.readingId, reading.etag, { status: "reviewed", rows: reading.value.rows.map((item) => item.questionId === input.questionId ? { ...item, status: resolvedStatus, selectedOptionIds: input.selectedOptionIds, candidateOptionIds: input.selectedOptionIds, requiresHumanReview: false, flags: [...new Set([...item.flags, "manual_override"])] } : item) });
+      await getManualDecisionRepository().create({ readingId: input.readingId, questionId: input.questionId, originalStatus: row.status, resolvedStatus, selectedOptionIds: input.selectedOptionIds, actorId: ownerId, reason: input.reason });
+      const refreshed = await getSubmissionRepository().get(ownerId, params.batchId, params.submissionId);
+      if (refreshed) await getSubmissionRepository().update(ownerId, params.batchId, params.submissionId, refreshed.etag, { state: "review", responsesConfirmedAt: undefined, responsesConfirmedBy: undefined, responsesFingerprint: undefined, comparisonConfirmedAt: undefined, comparisonConfirmedBy: undefined, comparisonAnswerKeyRevisionId: undefined, comparisonFingerprint: undefined, snapshotId: undefined });
+      return Response.json({ ok: true, requestId }, { headers: { "x-request-id": requestId } });
+    }
+
+    if (body.action === "confirm-responses" || body.action === "confirm-comparison") {
+      const answerKey = await getAnswerKeyRepository().get(ownerId, params.id, batch.value.answerKeyRevisionId);
+      if (!submission.value.confirmedIdentity) throw new AppError("SUBMISSION_UNASSIGNED", "Confirma la identidad antes de continuar.", 409);
+      if (!answerKey || answerKey.value.status !== "approved") throw new AppError("ANSWER_KEY_STALE", "El solucionario debe estar aprobado.", 409);
+      const readings = await getOmrReadingRepository().list(ownerId, submission.value.readingIds);
+      const questionIds = Object.entries(answerKey.value.decisions).filter(([, decision]) => decision.sectionId === "test").map(([questionId]) => questionId);
+      const rows = readings.flatMap((reading) => reading.value.rows);
+      const issues = questionIds.flatMap((questionId) => {
+        const matched = rows.filter((row) => row.questionId === questionId);
+        return matched.length !== 1 || matched.some((row) => row.requiresHumanReview || !["single", "blank"].includes(row.status)) ? [questionId] : [];
+      });
+      if (issues.length) throw new AppError("OMR_REVIEW_REQUIRED", `Resuelve todas las filas OMR antes de continuar. Preguntas: ${issues.slice(0, 8).join(", ")}.`, 409);
+      const fingerprint = comparisonFingerprint(batch.value.answerKeyRevisionId, readings);
+      const refreshed = await getSubmissionRepository().get(ownerId, params.batchId, params.submissionId);
+      if (!refreshed) throw new AppError("NOT_FOUND", "Entrega no encontrada.", 404);
+      if (body.action === "confirm-responses") {
+        const updated = await getSubmissionRepository().update(ownerId, params.batchId, params.submissionId, refreshed.etag, { responsesConfirmedAt: new Date().toISOString(), responsesConfirmedBy: ownerId, responsesFingerprint: fingerprint, comparisonConfirmedAt: undefined, comparisonConfirmedBy: undefined, comparisonAnswerKeyRevisionId: undefined, comparisonFingerprint: undefined, snapshotId: undefined, responseBlockingIssues: [], state: "review" });
+        return Response.json({ data: updated.value, requestId }, { headers: { "x-request-id": requestId } });
+      }
+      if (!refreshed.value.responsesConfirmedAt || refreshed.value.responsesFingerprint !== fingerprint) throw new AppError("RESPONSES_CONFIRMATION_REQUIRED", "Confirma de nuevo las respuestas del alumno antes de comparar.", 409);
+      const updated = await getSubmissionRepository().update(ownerId, params.batchId, params.submissionId, refreshed.etag, { comparisonConfirmedAt: new Date().toISOString(), comparisonConfirmedBy: ownerId, comparisonAnswerKeyRevisionId: batch.value.answerKeyRevisionId, comparisonFingerprint: fingerprint, snapshotId: undefined, state: "review" });
       return Response.json({ data: updated.value, requestId }, { headers: { "x-request-id": requestId } });
     }
 
@@ -87,6 +135,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       const refreshed = await getSubmissionRepository().get(ownerId, params.batchId, params.submissionId);
       if (!refreshed) throw new AppError("NOT_FOUND", "Entrega no encontrada.", 404);
       if (!refreshed.value.confirmedIdentity) throw new AppError("SUBMISSION_UNASSIGNED", "Confirma la identidad antes de puntuar.", 409);
+      if (!refreshed.value.comparisonConfirmedAt || refreshed.value.comparisonAnswerKeyRevisionId !== batch.value.answerKeyRevisionId) throw new AppError("COMPARISON_CONFIRMATION_REQUIRED", "Confirma la comparación en la pantalla 5 antes de puntuar.", 409);
+      const currentReadings = await getOmrReadingRepository().list(ownerId, refreshed.value.readingIds);
+      if (refreshed.value.comparisonFingerprint !== comparisonFingerprint(batch.value.answerKeyRevisionId, currentReadings)) throw new AppError("COMPARISON_STALE", "Las respuestas cambiaron desde que confirmaste la comparación. Revísala de nuevo.", 409);
       const answerKey = await getAnswerKeyRepository().get(ownerId, params.id, batch.value.answerKeyRevisionId);
       if (!answerKey || answerKey.value.status !== "approved") throw new AppError("ANSWER_KEY_STALE", "El solucionario debe estar aprobado.", 409);
       if (answerKey.value.scoringPolicyRevisionId !== batch.value.scoringPolicyRevisionId) throw new AppError("SCORING_POLICY_MISMATCH", "La política del lote no coincide con la del solucionario.", 409);
@@ -102,7 +153,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         const selected = Array.isArray(raw) ? raw : raw?.selectedOptionIds;
         if (Array.isArray(selected)) answersByQuestion[questionId] = { correctOptionIds: selected.map(String) };
       }
-      const decisions = await getManualDecisionRepository().listByReadings(ownerId, refreshed.value.readingIds);
+      const decisions = (await getManualDecisionRepository().listByReadings(ownerId, refreshed.value.readingIds)).sort((a, b) => a.decidedAt.localeCompare(b.decidedAt));
       for (const decision of decisions) {
         manualSelections[decision.questionId] = { selectedOptionIds: decision.selectedOptionIds, status: decision.resolvedStatus as "single" | "blank" };
       }

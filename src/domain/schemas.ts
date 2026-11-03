@@ -297,6 +297,8 @@ export const jobSchema = z.object({
     answerKeyRevisionId: idSchema,
     templateRevisionId: idSchema,
     scoringPolicyRevisionId: idSchema,
+    submissionId: idSchema.optional(),
+    scope: z.enum(["batch", "submission_omr", "submission_open"]).optional(),
     concurrency: z.number().int().positive().max(8),
     maxAttempts: z.number().int().positive().max(5).default(3),
     budget: z.object({

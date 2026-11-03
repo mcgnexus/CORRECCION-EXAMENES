@@ -2,6 +2,7 @@
 
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { ExamWorkflowNav } from "@/components/exam-workflow-nav";
 
 type Question = { questionId: string; number: number; label: string; type: string; text: string; options: Array<{ label: string; text: string }> };
 type Solution = { solutionProposalId: string; questionId: string; provider: "gemini" | "deepseek"; model: string; answer: unknown; explanation: string; alternatives: string[]; confidence: number; doubts: string[]; sourceMissing: boolean };
@@ -106,15 +107,6 @@ export default function AnswerKeyPage() {
     setMessage("Solucionario aprobado. Ya puedes crear el lote y subir los exámenes de los alumnos.");
   }
 
-  async function createBatch() {
-    setBusy(true);
-    const response = await fetch(`/api/exams/${params.id}/batches/quick`, { method: "POST", headers: { "content-type": "application/json", origin: window.location.origin }, body: JSON.stringify({ maxPages: 30 }) });
-    const payload = await response.json() as { data?: { batchId: string }; error?: { message?: string } };
-    setBusy(false);
-    if (!response.ok || !payload.data?.batchId) { setMessage(payload.error?.message ?? "No se pudo crear el lote."); return; }
-    window.location.href = `/exams/${params.id}/batches/${payload.data.batchId}`;
-  }
-
   const approved = data?.answerKey?.status === "approved";
 
   return (
@@ -122,6 +114,14 @@ export default function AnswerKeyPage() {
       <header className="topbar"><a className="eyebrow" href={`/exams/${params.id}`}>Volver al examen</a><span className="status">Solucionario</span></header>
       <section>
         <h1>Resolución del examen.</h1>
+        <ExamWorkflowNav current={2} links={[
+          { stage: 1, title: "Examen", href: `/exams/${params.id}`, enabled: true },
+          { stage: 2, title: "Respuestas IA", href: `/exams/${params.id}/answers`, enabled: true },
+          { stage: 3, title: "Plantilla OMR", href: `/exams/${params.id}/omr-template`, enabled: approved },
+          { stage: 4, title: "Alumnos", href: `/exams/${params.id}/students`, enabled: false },
+          { stage: 5, title: "Comparar", href: `/exams/${params.id}/students`, enabled: false },
+          { stage: 6, title: "Calificar", href: `/exams/${params.id}/students`, enabled: false },
+        ]} />
         <p className="intro">DeepSeek lee el examen y propone una respuesta por pregunta. Revisa, corrige si hace falta y aprueba: la corrección de los alumnos usará esta resolución.</p>
         {message ? <p className="notice" role="status">{message}</p> : null}
         {!data ? <p className="intro">Cargando...</p> : <>
@@ -131,11 +131,12 @@ export default function AnswerKeyPage() {
             <a className="button" href={`/exams/${params.id}`}>Volver al examen</a>
           </div> : <>
           <div className="actions">
-            <button className="button" type="button" disabled={busy} onClick={autofill}>{data.answerKey ? "Regenerar con IA" : "Generar solucionario con IA"}</button>
+            <button className="button" type="button" disabled={busy || approved} onClick={autofill}>{approved ? "Respuestas aprobadas" : data.answerKey ? "Regenerar con IA" : "Generar solucionario con IA"}</button>
+            <button className="button secondary" type="button" disabled={busy || deleting || approved || !data.answerKey} onClick={save}>Guardar correcciones</button>
             <button className="button secondary" type="button" disabled={busy || deleting || !data.answerKey} onClick={deleteAnswerKey}>{deleting ? "Eliminando..." : "Eliminar solucionario"}</button>
             <button className="button" type="button" disabled={busy || !data.answerKey || approved} onClick={approve}>Aprobar solucionario</button>
-            <button className="button secondary" type="button" disabled={busy || !approved} onClick={createBatch}>Crear lote de corrección</button>
           </div>
+          <div className="actions"><a className="button" aria-disabled={!approved} href={approved ? `/exams/${params.id}/omr-template` : undefined} onClick={(event) => { if (!approved) event.preventDefault(); }}>Siguiente: plantilla OMR</a></div>
           {data.answerKey ? <p className="intro">Estado del solucionario: <strong>{data.answerKey.status}</strong>. {data.answerKey.blockingIssues.length ? `Incidencias: ${data.answerKey.blockingIssues.join(", ")}.` : "Sin incidencias."}</p> : null}
           <div className="page-list">
             {data.questions.map((question) => {
